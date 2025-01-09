@@ -24,7 +24,7 @@ export class ListEditor implements IEditor {
     select.style.padding = '4px';
     select.style.width = '100%';
     select.style.boxSizing = 'border-box';
-
+    select.style.backgroundColor = '#FFFFFF';
     this.element = select;
 
     // create option tags
@@ -32,7 +32,9 @@ export class ListEditor implements IEditor {
     let opsStr = '';
     values.forEach(item => {
       opsStr +=
-        item === value ? `<option value=${item} selected>${item}</option>` : `<option value=${item} >${item}</option>`;
+        item === value
+          ? `<option value="${item}" selected>${item}</option>`
+          : `<option value="${item}" >${item}</option>`;
     });
     select.innerHTML = opsStr;
 
@@ -60,7 +62,7 @@ export class ListEditor implements IEditor {
 
     this.createElement(value);
 
-    if (value) {
+    if (value !== undefined && value !== null) {
       this.setValue(value);
     }
     if (referencePosition?.rect) {

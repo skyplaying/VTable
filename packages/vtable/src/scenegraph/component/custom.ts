@@ -1,4 +1,4 @@
-import type { Cursor } from '@src/vrender';
+import type { Cursor, ITimeline, Timeline } from '@src/vrender';
 import {
   createArc,
   createCircle,
@@ -10,6 +10,7 @@ import {
 } from '@src/vrender';
 import { isArray, isFunction, isObject, isString, isValid } from '@visactor/vutils';
 import type {
+  CellRange,
   ICustomLayout,
   ICustomRender,
   ICustomRenderElement,
@@ -19,6 +20,13 @@ import type {
 import { Icon } from '../graphic/icon';
 import type { BaseTableAPI } from '../../ts-types/base-table';
 import type { percentCalcObj } from '../../render/layout';
+import { emptyCustomLayout } from '../../components/react/react-custom-layout';
+import { getTargetCell } from '../../event/util';
+import type { Group } from '../graphic/group';
+
+export const CUSTOM_MERGE_PRE_NAME = '_custom_';
+export const CUSTOM_CONTAINER_NAME = 'custom-container';
+export const CUSTOM_MERGE_CONTAINER_NAME = CUSTOM_MERGE_PRE_NAME + '_0';
 
 export function dealWithCustom(
   customLayout: ICustomLayout,
@@ -30,6 +38,7 @@ export function dealWithCustom(
   autoWidth: boolean,
   autoHeight: boolean,
   padding: [number, number, number, number],
+  range: CellRange | undefined,
   table: BaseTableAPI
 ) {
   let renderDefault = true;
@@ -39,10 +48,14 @@ export function dealWithCustom(
   let customElements;
   let elementsGroup: VGroup;
 
+  if (customLayout === 'react-custom-layout') {
+    // customLayout = table._reactCreateGraphic;
+    customLayout = table.reactCustomLayout?.getCustomLayoutFunc(col, row) || emptyCustomLayout;
+  }
   if (typeof customLayout === 'function') {
     const arg = {
-      col,
-      row,
+      col: range?.start.col ?? col,
+      row: range?.start.row ?? row,
       dataValue: table.getCellOriginValue(col, row),
       value: table.getCellValue(col, row) || '',
       rect: {
@@ -53,17 +66,26 @@ export function dealWithCustom(
         width,
         height
       },
-      table
+      table,
+      originCol: col,
+      originRow: row
     };
     const customRenderObj = customLayout(arg);
+    if (!customRenderObj) {
+      return {
+        renderDefault: true
+      };
+    }
     if (customRenderObj.rootContainer) {
-      customRenderObj.rootContainer = decodeReactDom(customRenderObj.rootContainer);
+      customRenderObj.rootContainer = decodeReactDom(customRenderObj.rootContainer, table.animationManager.timeline);
     }
     // expectedWidth = customRenderObj.expectedWidth;
     // expectedHeight = customRenderObj.expectedHeight;
     if (customRenderObj.rootContainer instanceof VGroup) {
       elementsGroup = customRenderObj.rootContainer;
-      elementsGroup.name = 'custom-container';
+      elementsGroup.name = CUSTOM_CONTAINER_NAME;
+      (elementsGroup as any).col = col;
+      (elementsGroup as any).row = row;
       // } else if (customRenderObj.rootContainer) {
       //   customElements = customRenderObj.rootContainer.getElements(undefined, false, false);
     }
@@ -121,6 +143,11 @@ export function dealWithCustom(
   // for percent calc
   dealPercentCalc(elementsGroup, width, height);
 
+  // deal with merge cell attribute update
+  if (range && (range.start.col !== range.end.col || range.start.row !== range.end.row)) {
+    bindAttributeUpdate(elementsGroup, col, row, 0);
+  }
+
   return {
     elementsGroup,
     renderDefault
@@ -142,7 +169,7 @@ function adjustElementToGroup(
     stroke: false,
     pickable: false
   });
-  customGroup.name = 'custom-container';
+  customGroup.name = CUSTOM_CONTAINER_NAME;
 
   const elementsAdjusted = adjustElementsPos(elements, width, height, value);
   elementsAdjusted.forEach(element => {
@@ -271,6 +298,7 @@ function adjustElementToGroup(
       case 'line':
         const line = createLine({
           points: element.points,
+          lineWidth: element.lineWidth ?? 1,
           stroke: element.stroke as string,
           pickable: !!element.pickable,
           cursor: element.cursor as Cursor
@@ -383,17 +411,31 @@ export function dealPercentCalc(group: VGroup, parentWidth: number, parentHeight
     if (isObject(child.attribute.width) && (child.attribute.width as percentCalcObj).percent) {
       child.setAttribute(
         'width',
-        ((child.attribute.width as percentCalcObj).percent / 100) * parentWidth +
-          ((child.attribute.width as percentCalcObj).delta ?? 0)
+        Math.max(
+          0,
+          ((child.attribute.width as percentCalcObj).percent / 100) * parentWidth +
+            ((child.attribute.width as percentCalcObj).delta ?? 0)
+        )
       );
+    }
+
+    if (child.attribute.width < 0) {
+      child.setAttribute('width', 0);
     }
 
     if (isObject(child.attribute.height) && (child.attribute.height as percentCalcObj).percent) {
       child.setAttribute(
         'height',
-        ((child.attribute.height as percentCalcObj).percent / 100) * parentHeight +
-          ((child.attribute.height as percentCalcObj).delta ?? 0)
+        Math.max(
+          0,
+          ((child.attribute.height as percentCalcObj).percent / 100) * parentHeight +
+            ((child.attribute.height as percentCalcObj).delta ?? 0)
+        )
       );
+    }
+
+    if (child.attribute.height < 0) {
+      child.setAttribute('height', 0);
     }
 
     if (child.type === 'group') {
@@ -403,13 +445,17 @@ export function dealPercentCalc(group: VGroup, parentWidth: number, parentHeight
 }
 
 // temp devode for react jsx customLayout
-export function decodeReactDom(dom: any) {
-  if (!dom || !dom.$$typeof) {
-    // not react
+export function decodeReactDom(dom: any, timeline?: ITimeline) {
+  if (
+    !dom ||
+    (!isValid(dom.$$typeof) && // for react
+      !isValid(dom.vtype)) // for openinula
+  ) {
+    // not react or openinula
     return dom;
   }
   const type = dom.type;
-  const { attribute, children, stateProxy } = dom.props;
+  const { attribute, children, stateProxy, animation } = dom.props;
   const g = type({ attribute });
   parseToGraphic(g, dom.props);
   if (stateProxy) {
@@ -420,11 +466,19 @@ export function decodeReactDom(dom: any) {
   g.name = attribute.name;
   if (isArray(children)) {
     children.forEach((item: any) => {
-      const c = decodeReactDom(item);
+      const c = decodeReactDom(item, timeline);
       c && c.type && g.add(c);
     });
   } else if (children) {
-    g.add(decodeReactDom(children));
+    g.add(decodeReactDom(children, timeline));
+  }
+
+  if (isArray(animation) && timeline) {
+    const animate = g.animate();
+    animate.setTimeline(timeline);
+    animation.forEach((item: any[]) => {
+      animate[item[0]](...item.slice(1));
+    });
   }
   return g;
 }
@@ -460,5 +514,75 @@ function parseToGraphic(g: any, props: any) {
     //   if (g.type === 'richtext') {
     //     g.attribute.textConfig = childrenList.map(item => item.attribute).filter(item => item);
     //   }
+  }
+}
+
+function bindAttributeUpdate(group: VGroup, col: number, row: number, index: number, preId?: string) {
+  if (!group) {
+    return;
+  }
+  group.name = `${CUSTOM_MERGE_PRE_NAME}${preId ?? ''}_${index}`;
+  group.onBeforeAttributeUpdate = onBeforeAttributeUpdate as any;
+  // group.on('afterAttributeUpdate', (e) => {console.log('afterAttributeUpdate', e)})
+  if (group.type === 'group' && group.childrenCount) {
+    group.forEachChildren((child: VGroup, childIndex: number) => {
+      bindAttributeUpdate(child, col, row, childIndex, (preId ?? '') + '_' + index);
+    });
+  }
+}
+
+function onBeforeAttributeUpdate(val: Record<string, any>, attribute: any) {
+  // @ts-ignore
+  const graphic = this as any;
+  if (graphic.skipMergeUpdate) {
+    return;
+  }
+  const cellGroup = getTargetCell(graphic) as Group;
+  if (!cellGroup || !cellGroup.stage) {
+    return;
+  }
+  const table = ((cellGroup as any).stage as any).table as BaseTableAPI;
+  graphic.skipAttributeUpdate = true;
+  const { mergeStartCol, mergeEndCol, mergeStartRow, mergeEndRow } = cellGroup;
+  if (
+    isValid(mergeStartCol) &&
+    isValid(mergeEndCol) &&
+    isValid(mergeStartRow) &&
+    isValid(mergeEndRow) &&
+    (mergeStartCol !== mergeEndCol || mergeStartRow !== mergeEndRow)
+  ) {
+    for (let col = mergeStartCol; col <= mergeEndCol; col++) {
+      for (let row = mergeStartRow; row <= mergeEndRow; row++) {
+        if (col === cellGroup.col && row === cellGroup.row) {
+          continue;
+        }
+        // const cell = table.scenegraph.getCell(col, row);
+        const cell = table.scenegraph.highPerformanceGetCell(col, row);
+        if (cell.role === 'cell') {
+          const target = cell.getChildByName(graphic.name, true);
+          if (!target || target.skipAttributeUpdate) {
+            continue;
+          }
+          for (const key in val) {
+            // 表格内merge 单元格布局时，会使用dx dy定位，避免重复更新值，属性同步跳过 dx dy
+            // console.log(
+            //   '[onBeforeAttributeUpdate]',
+            //   target._uid,
+            //   cellGroup.col,
+            //   cellGroup.row,
+            //   col,
+            //   row,
+            //   key,
+            //   val[key]
+            // );
+            if (val[key] !== target.attribute[key] && key !== 'dx' && key !== 'dy') {
+              target.setAttribute(key, val[key]);
+            }
+          }
+        }
+      }
+    }
+    graphic.skipAttributeUpdate = undefined;
+    // return attribute;
   }
 }

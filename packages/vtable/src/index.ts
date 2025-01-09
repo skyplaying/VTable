@@ -30,8 +30,11 @@ import type {
   TextAlignType,
   TextBaselineType
 } from './ts-types';
-import { ListTable } from './ListTable';
-import { PivotTable } from './PivotTable';
+import { ListTableAll as ListTable } from './ListTable-all';
+import { ListTableSimple } from './ListTable-simple';
+// import { PivotTable } from './PivotTable';
+import { PivotTableAll as PivotTable } from './PivotTable-all';
+import { PivotTableSimple } from './PivotTable-simple';
 import { PivotChart } from './PivotChart';
 import type { MousePointerCellEvent } from './ts-types/events';
 import * as CustomLayout from './render/layout';
@@ -45,6 +48,12 @@ import { restoreMeasureText, setCustomAlphabetCharSet } from './scenegraph/utils
 
 export { getDataCellPath } from './tools/get-data-path';
 export * from './render/jsx';
+export { getTargetCell } from './event/util';
+
+export { Icon } from './scenegraph/graphic/icon';
+
+// export * as VRender from './vrender';
+// import * as VRender from './vrender';
 
 export const version = __VERSION__;
 /**
@@ -58,8 +67,10 @@ export {
   TYPES,
   core,
   ListTable,
+  ListTableSimple,
   ListTableConstructorOptions,
   PivotTable,
+  PivotTableSimple,
   PivotTableConstructorOptions,
   PivotChartConstructorOptions,
   PivotChart,
@@ -96,6 +107,8 @@ export {
   graphicUtil,
   setCustomAlphabetCharSet,
   restoreMeasureText
+
+  // VRender // should use import {xxx} from '@visactor/vtable/es/vrender'
 };
 
 /** @private */
@@ -111,3 +124,11 @@ function clearGlobal() {
   // columns.type.clearGlobal();
 }
 TYPES.AggregationType;
+
+export * from './components';
+export * from './scenegraph/group-creater/cell-type';
+
+export { TABLE_EVENT_TYPE } from './core/TABLE_EVENT_TYPE';
+export { PIVOT_CHART_EVENT_TYPE, PIVOT_TABLE_EVENT_TYPE } from './ts-types/pivot-table/PIVOT_TABLE_EVENT_TYPE';
+
+export { EventTarget } from './event/EventTarget';

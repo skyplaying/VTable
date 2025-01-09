@@ -6,14 +6,14 @@ export interface IEditor<V = any> {
    * Warning will be thrown if you don't provide this function
    * after removal of `beginEditing`.
    */
-  onStart?: (context: EditContext<V>) => void;
+  onStart: (context: EditContext<V>) => void;
   /**
    * called when cell exits edit mode.
    *
    * Warning will be thrown if you don't provide this function
    * after removal of `exit`.
    */
-  onEnd?: () => void;
+  onEnd: () => void;
   /**
    * Called when user click somewhere while editor is in edit mode.
    *
@@ -24,6 +24,19 @@ export interface IEditor<V = any> {
    * to end edit mode.
    */
   isEditorElement?: (target: HTMLElement) => boolean;
+  /**
+   * Before set new value to table, use it to validate value.
+   * If the interface returns true, the value takes effect; otherwise, it does not take effect.
+   * @param newValue new value to be set. If not provided, the current input element value will be used.
+   * @param oldValue old value of the cell.
+   */
+  // validateValue?: (newValue?: V, oldValue?: V) => boolean | Promise<boolean>;
+  validateValue?: (
+    newValue?: any,
+    oldValue?: any,
+    position?: CellAddress,
+    table?: any
+  ) => boolean | ValidateEnum | Promise<boolean | ValidateEnum>;
   /**
    * Called when editor mode is exited by any means.
    * Expected to return the current value of the cell.
@@ -96,3 +109,15 @@ export interface ReferencePosition {
   rect: RectProps;
   placement?: Placement;
 }
+
+export enum ValidateEnum {
+  validateExit = 'validate-exit',
+  invalidateExit = 'invalidate-exit',
+  validateNotExit = 'validate-not-exit',
+  invalidateNotExit = 'invalidate-not-exit'
+}
+
+export type CellAddress = {
+  col: number;
+  row: number;
+};

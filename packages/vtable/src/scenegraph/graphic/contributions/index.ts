@@ -10,7 +10,12 @@ import {
   TextRenderContribution
 } from '@src/vrender';
 import { ChartRender, DefaultCanvasChartRender } from './chart-render';
-import { AfterImageRenderContribution, BeforeImageRenderContribution } from './image-contribution-render';
+import {
+  AfterImageRenderContribution,
+  BeforeImageRenderContribution,
+  BeforeGifImageRenderContribution,
+  AfterGifImageRenderContribution
+} from './image-contribution-render';
 import {
   SplitRectBeforeRenderContribution as VTableSplitRectBeforeRenderContribution,
   SplitRectAfterRenderContribution as VTableSplitRectAfterRenderContribution
@@ -24,8 +29,8 @@ import {
   AdjustPosGroupAfterRenderContribution,
   AdjustColorGroupBeforeRenderContribution,
   AdjustColorGroupAfterRenderContribution,
-  ClipBodyGroupBeforeRenderContribution,
-  ClipBodyGroupAfterRenderContribution
+  ClipBodyGroupBeforeRenderContribution
+  // ClipBodyGroupAfterRenderContribution
 } from './group-contribution-render';
 import { VTableDrawItemInterceptorContribution } from './draw-interceptor';
 import { SuffixTextBeforeRenderContribution } from './text-contribution-render';
@@ -56,6 +61,11 @@ export default new ContainerModule((bind, unbind, isBound, rebind) => {
   bind(AfterImageRenderContribution).toSelf().inSingletonScope();
   bind(ImageRenderContribution).toService(AfterImageRenderContribution);
 
+  bind(BeforeGifImageRenderContribution).toSelf().inSingletonScope();
+  bind(ImageRenderContribution).toService(BeforeGifImageRenderContribution);
+  bind(AfterGifImageRenderContribution).toSelf().inSingletonScope();
+  bind(ImageRenderContribution).toService(AfterGifImageRenderContribution);
+
   // group 渲染器注入contributions
   bind(AdjustColorGroupBeforeRenderContribution).toSelf().inSingletonScope();
   bind(GroupRenderContribution).toService(AdjustColorGroupBeforeRenderContribution);
@@ -79,8 +89,8 @@ export default new ContainerModule((bind, unbind, isBound, rebind) => {
 
   bind(ClipBodyGroupBeforeRenderContribution).toSelf().inSingletonScope();
   bind(GroupRenderContribution).toService(ClipBodyGroupBeforeRenderContribution);
-  bind(ClipBodyGroupAfterRenderContribution).toSelf().inSingletonScope();
-  bind(GroupRenderContribution).toService(ClipBodyGroupAfterRenderContribution);
+  // bind(ClipBodyGroupAfterRenderContribution).toSelf().inSingletonScope();
+  // bind(GroupRenderContribution).toService(ClipBodyGroupAfterRenderContribution);
 
   // interceptor
   bind(VTableDrawItemInterceptorContribution).toSelf().inSingletonScope();

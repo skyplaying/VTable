@@ -63,7 +63,10 @@ export interface IIconBase {
       padding?: number[];
       bgColor?: string;
       arrowMark?: boolean;
+      maxWidth?: number;
+      maxHeight?: number;
     };
+    disappearDelay?: number;
   };
   /**
    * 是否可交互 默认为true  目前已知不可交互按钮：下拉菜单状态
@@ -83,6 +86,8 @@ export interface ImageIcon extends IIconBase {
   src: string;
   /** 图片裁切形状 */
   shape?: 'circle' | 'square';
+
+  isGif?: boolean;
 }
 
 export interface PathIcon extends IIconBase {
@@ -147,7 +152,8 @@ export enum IconFuncTypeEnum {
   expand = 'expand',
   collapse = 'collapse',
   drillDown = 'drillDown',
-  drillUp = 'drillUp'
+  drillUp = 'drillUp',
+  dragReorder = 'dragReorder'
 }
 export enum InternalIconName {
   upwardIconName = 'sort_upward',
@@ -160,7 +166,10 @@ export enum InternalIconName {
   dropdownIconName = 'dropdownIcon',
   // dropdownHoverIconName = 'dropdownIcon_hover',
   expandIconName = 'expand',
-  collapseIconName = 'collapse'
+  collapseIconName = 'collapse',
+  dragReorderIconName = 'dragReorder',
+
+  loadingIconName = 'loading'
 }
 // 目前暂不支持FontIcon&PathIcon
 export type ColumnIconOption = ImageIcon | SvgIcon;

@@ -13,3 +13,6 @@ export * from './menu';
 export * from './icon';
 export * from './list-table';
 export * from './pivot-table';
+export * from './component';
+export * from './animation';
+export * from './dataset';
