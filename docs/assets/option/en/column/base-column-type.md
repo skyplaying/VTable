@@ -60,6 +60,7 @@ The type structure of IStyleOption is as follows:
   isImage = ${isImage},
   isProgressbar = ${isProgressbar},
   isCheckbox = ${isCheckbox},
+  isRadio = ${isRadio},
 ) }}
 
 ${prefix} headerIcon(string|Object|Array)
@@ -70,7 +71,7 @@ Header cell icon configuration. Available configuration types are:
 string | ColumnIconOption | (string | ColumnIconOption)[];
 ```
 
-For the specific configuration of ColumnIconOption, refer to the [definition](/zh/option.html#ListTable-columns-text.icon.ColumnIconOption定义：)
+For the specific configuration of ColumnIconOption, refer to the [definition](./ListTable-columns-text#icon.ColumnIconOption)
 
 ${prefix} icon(string|Object|Array|Funciton)
 
@@ -84,16 +85,18 @@ icon?:
     | ((args: CellInfo) => string | ColumnIconOption | (string | ColumnIconOption)[]);
 ```
 
-#${prefix} ColumnIconOption definition:
+#${prefix} ColumnIconOption
 
 ```
 type ColumnIconOption = ImageIcon | SvgIcon;
 ```
 
 #${prefix} ImageIcon(Object)
+type is set to 'image'. The image address needs to be set in src
 {{ use: image-icon(  prefix = '##' + ${prefix}) }}
 
 #${prefix} SvgIcon(Object)
+type is set to 'svg'. You need to configure the svg address or the complete svg file string in svg
 {{ use: svg-icon(  prefix = '##' + ${prefix}) }}
 
 ${prefix} sort(boolean|Function)
@@ -107,7 +110,7 @@ Whether to display the sort icon, no real sorting logic. If the sort field is se
 ${prefix} disableHover(boolean)
 This column does not support hover interaction behavior
 
-${prefix} disableSelect(boolean)
+${prefix} disableSelect(boolean | ((col: number, row: number, table: BaseTableAPI) => boolean))
 This column does not support selection
 
 ${prefix} disableHeaderHover(boolean)
@@ -248,4 +251,9 @@ Data aggregation summary configuration to analyze the column data.
 
 Global options can also be configured to configure aggregation rules for each column.
 
-Please refer to the tutorial document
+Please refer to [the tutorial document](https://visactor.io/vtable/guide/data_analysis/list_table_dataAnalysis)
+
+${prefix} hide(boolean) = false
+Not required.
+
+Weather hide column.

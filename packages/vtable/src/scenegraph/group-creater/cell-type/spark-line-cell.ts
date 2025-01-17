@@ -1,10 +1,11 @@
 import type { ILine, ISymbol, IThemeSpec } from '@src/vrender';
 import { createLine, createSymbol } from '@src/vrender';
 import { PointScale, LinearScale } from '@visactor/vscale';
-import { isValid } from '@visactor/vutils';
+import { isNumber, isValid } from '@visactor/vutils';
 import { Group } from '../../graphic/group';
 import type { CellInfo, SparklineSpec } from '../../../ts-types';
 import type { BaseTableAPI } from '../../../ts-types/base-table';
+import type { ColumnData } from '../../../ts-types/list-table/layout-map/api';
 import { getCellBorderStrokeWidth } from '../../utils/cell-border-stroke-width';
 
 const xScale: PointScale = new PointScale();
@@ -21,38 +22,58 @@ export function createSparkLineCellGroup(
   height: number,
   padding: number[],
   table: BaseTableAPI,
-  cellTheme: IThemeSpec
+  cellTheme: IThemeSpec,
+  isAsync: boolean
 ) {
   // cell
   if (!cellGroup) {
     const strokeArrayWidth = getCellBorderStrokeWidth(col, row, cellTheme, table);
-    cellGroup = new Group({
-      x: xOrigin,
-      y: yOrigin,
-      width,
-      height,
 
-      // 背景相关，cell背景由cellGroup绘制
-      lineWidth: cellTheme?.group?.lineWidth ?? undefined,
-      fill: cellTheme?.group?.fill ?? undefined,
-      stroke: cellTheme?.group?.stroke ?? undefined,
-
-      strokeArrayWidth: strokeArrayWidth,
-      strokeArrayColor: (cellTheme?.group as any)?.strokeArrayColor ?? undefined,
-      cursor: (cellTheme?.group as any)?.cursor ?? undefined,
-      lineDash: cellTheme?.group?.lineDash ?? undefined,
-
-      lineCap: 'square',
-
-      clip: true,
-
-      cornerRadius: cellTheme.group.cornerRadius
-    } as any);
-    cellGroup.role = 'cell';
-    cellGroup.col = col;
-    cellGroup.row = row;
-    // columnGroup?.addChild(cellGroup);
-    columnGroup?.addCellGroup(cellGroup);
+    if (isAsync) {
+      cellGroup = table.scenegraph.highPerformanceGetCell(col, row, true);
+      if (cellGroup && cellGroup.role === 'cell') {
+        cellGroup.setAttributes({
+          x: xOrigin,
+          y: yOrigin,
+          width,
+          height,
+          // 背景相关，cell背景由cellGroup绘制
+          lineWidth: cellTheme?.group?.lineWidth ?? undefined,
+          fill: cellTheme?.group?.fill ?? undefined,
+          stroke: cellTheme?.group?.stroke ?? undefined,
+          strokeArrayWidth: strokeArrayWidth,
+          strokeArrayColor: (cellTheme?.group as any)?.strokeArrayColor ?? undefined,
+          cursor: (cellTheme?.group as any)?.cursor ?? undefined,
+          lineDash: cellTheme?.group?.lineDash ?? undefined,
+          lineCap: 'butt',
+          clip: true,
+          cornerRadius: cellTheme.group.cornerRadius
+        } as any);
+      }
+    }
+    if (!cellGroup || cellGroup.role !== 'cell') {
+      cellGroup = new Group({
+        x: xOrigin,
+        y: yOrigin,
+        width,
+        height,
+        // 背景相关，cell背景由cellGroup绘制
+        lineWidth: cellTheme?.group?.lineWidth ?? undefined,
+        fill: cellTheme?.group?.fill ?? undefined,
+        stroke: cellTheme?.group?.stroke ?? undefined,
+        strokeArrayWidth: strokeArrayWidth,
+        strokeArrayColor: (cellTheme?.group as any)?.strokeArrayColor ?? undefined,
+        cursor: (cellTheme?.group as any)?.cursor ?? undefined,
+        lineDash: cellTheme?.group?.lineDash ?? undefined,
+        lineCap: 'butt',
+        clip: true,
+        cornerRadius: cellTheme.group.cornerRadius
+      } as any);
+      cellGroup.role = 'cell';
+      cellGroup.col = col;
+      cellGroup.row = row;
+      columnGroup?.addCellGroup(cellGroup);
+    }
   }
 
   // chart
@@ -63,6 +84,8 @@ export function createSparkLineCellGroup(
 
   return cellGroup;
 }
+
+export type CreateSparkLineCellGroup = typeof createSparkLineCellGroup;
 
 function createSparkLine(
   col: number,
@@ -76,7 +99,7 @@ function createSparkLine(
   //待定 TODO group需要设置shape属性吗
   let sparklineSpec: SparklineSpec;
   let chartGroup: Group;
-  const chartSpecRaw = table.internalProps.layoutMap.getBody(col, row).sparklineSpec;
+  const chartSpecRaw = (table.internalProps.layoutMap.getBody(col, row) as ColumnData).sparklineSpec;
   const dataValue = table.getCellValue(col, row) as unknown as any[];
 
   if (!Array.isArray(dataValue)) {
@@ -135,13 +158,15 @@ function createSparkLine(
     yField = sparklineSpec.yField.field;
   } else if (typeof sparklineSpec.yField === 'string') {
     // string类型 自动计算出domain
-    const values = dataValue.map((value: any) => value[sparklineSpec.yField as string]);
+    // const values = dataValue.map((value: any) => value[sparklineSpec.yField as string]);
+    const values = getYNumbers(dataValue, sparklineSpec.yField as string);
     yScale.domain([Math.min(...values), Math.max(...values)]);
     yField = sparklineSpec.yField;
   } else {
     // yField未配置 检查data是否为数值数组
-    if (Array.isArray(dataValue) && dataValue.every((value: any) => typeof value === 'number')) {
-      yScale.domain([Math.min(...dataValue), Math.max(...dataValue)]);
+    if (Array.isArray(dataValue)) {
+      const values = getYNumbers(dataValue);
+      yScale.domain([Math.min(...values), Math.max(...values)]);
       yField = sparklineSpec.yField;
     }
   }
@@ -155,7 +180,7 @@ function createSparkLine(
       let valid = false;
       for (let j = 0; j < values.length; j++) {
         // eslint-disable-next-line eqeqeq
-        if (domain[i] == values[j]) {
+        if (domain[i] === values[j]) {
           const data: any = dataValue[j];
           // 无效数据不进行scale，避免null被解析为0
           if (!isValid(data[xField]) || !isValid(data[yField])) {
@@ -298,4 +323,19 @@ function createChartGroup(
     (symbolGroup as any).hover = specObj.point?.hover ?? false;
   }
   return group;
+}
+
+function getYNumbers(data: any[], field?: string): number[] {
+  // return data.map((item) => item[field]).filter((item) => isValid(item));
+  const numbers = [];
+  for (let i = 0; i < data.length; i++) {
+    const item = data[i];
+    if (isValid(field) && isValid(item[field])) {
+      numbers.push(item[field]);
+    } else if (!isValid(field) && isValid(item)) {
+      numbers.push(item);
+    }
+  }
+
+  return numbers;
 }

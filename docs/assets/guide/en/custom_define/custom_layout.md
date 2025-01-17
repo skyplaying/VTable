@@ -41,7 +41,7 @@ Here is a configuration example, where VGroup, VImage, and VText are used, and f
   customLayout: args => {
     const { table, row, col, rect } = args;
     const { height, width } = rect ?? table.getCellRect(col, row);
-    const record = table.getRecordByCell(col, row);
+    const record = table.getCellOriginRecord(col, row);
 
     const container = (
       <VGroup
@@ -216,13 +216,9 @@ The lower middle part (D) is laid out horizontally, with three elements: group t
 
 The province and city buttons are composed of multiple elements, and the height of the entire container is determined by the layout wrap result. The minimum height is when it is displayed in one line without wrapping; the maximum height is when all three elements are wrapped and displayed in three lines.
 
-## Automatic Row Height and Column Width Calculation
-
-Using the percentCalc method to specify the width and height of a container in percentage, when specifying adaptive width and height in the table, it will automatically calculate the cell width and height that can accommodate all content based on the content's width and height, as the actual content width and height of this cell.
-
 ## JSX Primitives
 
-For detailed instructions, please refer to the tutorial provided by VRender: [TODO]
+For detailed instructions, please refer to the tutorial provided by VRender: [`VRender Primitive Configuration`](https://visactor.io/vrender/option/Group)
 
 ### Container Primitives
 
@@ -239,20 +235,22 @@ Container primitives `VGroup` are box model layout containers that support autom
 
 Basic custom primitives currently support `VRect`, `VCircle`, `VText`, `VImage`
 
-| Primitive Type | Basic Properties                                           |
-| :------------- | :--------------------------------------------------------- |
-| rect           | width, height, stroke, fill, lineWidth, cornerRadius...    |
-| circle         | radius, startAngle, endAngle, stroke, fill, lineWidth...   |
-| text           | text, fontSize, fontFamily, fill...                        |
-| image          | image, width, height                                       |
+| Primitive Type | Basic Properties                                         |
+| :------------- | :------------------------------------------------------- |
+| rect           | width, height, stroke, fill, lineWidth, cornerRadius...  |
+| circle         | radius, startAngle, endAngle, stroke, fill, lineWidth... |
+| text           | text, fontSize, fontFamily, fill...                      |
+| image          | image, width, height                                     |
 
 Basic custom components currently support `VTag`
 |Primitive Type|Basic Properties|
 |:----|:----|
 |tag|text, textStyle, shape, padding...|
+|radio|checked, disabled, text, icon...|
+|checkbox|checked, disabled, text, icon...|
 
 Primitives can be configured with the `boundsPadding` property to achieve a margin effect
-`boundsPadding: [marginLeft, marginRight, marginTop, marginBottom]`
+`boundsPadding: [marginTop, marginRight, marginBottom, marginLeft]`
 The margin of a primitive is calculated in the space it occupies
 
 ### Primitive State Updates and Interaction Events
@@ -299,69 +297,185 @@ By binding events, updating the state of primitives, and implementing interactio
 
 Rectangle Primitive
 
-| key          | type   | description   |
-| :----------- | :----- | :------------ |
-| width        | number | Rectangle width |
+| key          | type   | description      |
+| :----------- | :----- | :--------------- |
+| width        | number | Rectangle width  |
 | height       | number | Rectangle height |
-| lineWidth    | number | Stroke width  |
-| cornerRadius | number | Corner radius |
-| fill         | string | Fill color    |
-| stroke       | string | Stroke color  |
+| lineWidth    | number | Stroke width     |
+| cornerRadius | number | Corner radius    |
+| fill         | string | Fill color       |
+| stroke       | string | Stroke color     |
 
 ### VCircle
 
 Circle Primitive
 
-| key        | type   | description |
-| :--------- | :----- | :---------- |
-| radius     | number | Radius      |
-| startAngle | number | Start angle |
-| endAngle   | number | End angle   |
-| lineWidth  | number | Stroke width|
-| fill       | string | Fill color  |
-| stroke     | string | Stroke color|
+| key        | type   | description  |
+| :--------- | :----- | :----------- |
+| radius     | number | Radius       |
+| startAngle | number | Start angle  |
+| endAngle   | number | End angle    |
+| lineWidth  | number | Stroke width |
+| fill       | string | Fill color   |
+| stroke     | string | Stroke color |
 
 ### VText
 
 Text Primitive
 
-| key        | type   | description |
-| :--------- | :----- | :---------- |
-| text       | string | Text content|
-| fontSize   | string | Font size   |
-| fontFamily | string | Font family |
-| fill       | string | Text color  |
+| key        | type   | description  |
+| :--------- | :----- | :----------- |
+| text       | string | Text content |
+| fontSize   | string | Font size    |
+| fontFamily | string | Font family  |
+| fill       | string | Text color   |
 
 ### VImage
 
 Image Primitive
 
-| key    | type   | description                                       |
-| :----- | :----- | :------------------------------------------------ |
-| width  | number | Image width                                       |
-| height | number | Image height                                      |
+| key    | type   | description                                            |
+| :----- | :----- | :----------------------------------------------------- |
+| width  | number | Image width                                            |
+| height | number | Image height                                           |
 | image  | string | HTMLImageElement \| HTMLCanvasElement \| Image content |
+
+### VLine
+
+Image Primitive
+
+| key       | type                     | description                                         |
+| :-------- | :----------------------- | :-------------------------------------------------- |
+| points    | {x: number, y: number}[] | The coordinates of the points that make up the line |
+| lineWidth | number                   | stroke width                                        |
+| stroke    | string                   | stroke color                                        |
 
 ### VGroup
 
 Container
 
-| key            | type                                                                        | description                            |
-| :------------- | :-------------------------------------------------------------------------- | :------------------------------------- |
-| width          | number                                                                      | percentCalcObj\|Container width        |
-| height         | number                                                                      | percentCalcObj\|Container height       |
-| display        | 'relative' \| 'flex'                                                        | Layout mode (`flex` enables flex layout mode) |
-| flexDirection  | 'row' \| 'row-reverse' \| 'column' \| 'column-reverse'                      | Direction of the main axis             |
-| flexWrap       | 'nowrap' \| 'wrap'                                                          | Whether to display in a single line or multiple lines |
+| key            | type                                                                        | description                                                                        |
+| :------------- | :-------------------------------------------------------------------------- | :--------------------------------------------------------------------------------- |
+| width          | number                                                                      | Container width                                                    |
+| height         | number                                                                      | Container height                                                   |
+| display        | 'relative' \| 'flex'                                                        | Layout mode (`flex` enables flex layout mode)                                      |
+| flexDirection  | 'row' \| 'row-reverse' \| 'column' \| 'column-reverse'                      | Direction of the main axis                                                         |
+| flexWrap       | 'nowrap' \| 'wrap'                                                          | Whether to display in a single line or multiple lines                              |
 | justifyContent | 'flex-start' \| 'flex-end' \| 'center' \| 'space-between' \| 'space-around' | Rule for distributing space between and around content elements along the row axis |
-| alignItems     | 'flex-start' \| 'flex-end' \| 'center'                                      | Alignment rule on the cross axis       |
-| alignContent   | 'flex-start' \| 'center' \| 'space-between' \| 'space-around'               | Alignment rule on the main axis        |
+| alignItems     | 'flex-start' \| 'flex-end' \| 'center'                                      | Alignment rule on the cross axis                                                   |
+| alignContent   | 'flex-start' \| 'center' \| 'space-between' \| 'space-around'               | Alignment rule on the main axis                                                    |
+
+### VTag
+
+label component
+
+| key       | type                  | description                                                                             |
+| :-------- | :-------------------- | :-------------------------------------------------------------------------------------- |
+| textStyle | ITextGraphicAttribute | Text style, same as text primitive attribute                                            |
+| shape     | TagShapeAttributes    | Style configuration of the chart in the tag                                             |
+| space     | number                | distance between icon and text                                                          |
+| padding   | number[]              | distance between content and border                                                     |
+| panel     | BackgroundAttributes  | The style of the outer border and background, the same as the rect primitive attributes |
+| minWidth  | number                | minimum width                                                                           |
+| maxWidth  | number                | maximum width                                                                           |
+
+### VRadio
+
+label component
+
+| key                     | type                                                                                                                          | description                                  |
+| :---------------------- | :---------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------- |
+| interactive             | boolean                                                                                                                       | whether interactive                          |
+| disabled                | boolean                                                                                                                       | Whether to disable                           |
+| checked                 | boolean                                                                                                                       | Whether to check                             |
+| spaceBetweenTextAndIcon | number                                                                                                                        | Between icon and text                        |
+| text                    | ITextGraphicAttribute                                                                                                         | Text style, same as text primitive attribute |
+| circle                  | {disableFill?: IColor;checkedFill?: IColor;checkedStroke?: IColor;disableCheckedFill?: IColor;disableCheckedStroke?: IColor;} | icon style                                   |
+
+### VCheckbox
+
+label component
+
+| key| type| description|
+| :--- | :--- | :------ |
+| interactive             | boolean                                                                                                                       | whether interactive                          |
+| disabled                | boolean                                                                                                                       | Whether to disable                           |
+| checked                 | boolean                                                                                                                       | Whether to check                             |
+| indeterminate           | boolean                                                                                                                       | Whether it is in an indeterminate state      |
+| spaceBetweenTextAndIcon | number                                                                                                                        | Between icon and text                        |
+| text                    | ITextGraphicAttribute                                                                                                         | Text style, same as text primitive attribute |
+| icon                    | {checkIconImage?: string                                                                                                      | HTMLImageElement                             | HTMLCanvasElement;indeterminateIconImage?: string | HTMLImageElement | HTMLCanvasElement;} | icon style |
+| box                     | {disableFill?: IColor;checkedFill?: IColor;checkedStroke?: IColor;disableCheckedFill?: IColor;disableCheckedStroke?: IColor;} | chart background style                       |
 
 ## CustomLayout Creating Primitive Objects Usage
 
 _- customLayout supports object creation syntax_
 
-To create primitive objects using CustomLayout, you need to use `new VTable.CustomLayout.XXX` to create primitives. For specific configuration properties, refer to [`VRender Primitive Configuration`](https://visactor.io/vrender/option/Group)
+To create primitive objects using CustomLayout, you need to use `createXXX` to create primitives. For specific configuration properties, refer to [`VRender Primitive Configuration`](https://visactor.io/vrender/option/Group)
 
 For example:
 
+```ts
+import { createText, createGroup } from '@visactor/vtable/es/vrender';
+
+const text1 = new createText({
+  text: 'text',
+  fontSize: 28,
+  fontFamily: 'sans-serif',
+  fill: 'black'
+});
+
+const container = new createGroup({
+  height,
+  width
+});
+containerRight.add(text1);
+
+return {
+  rootContainer: container,
+  renderDefault: false
+};
+```
+
+## Animation
+
+VTable provides animation support for custom layouts, you can refer to the [VRender animation tutorial](https://visactor.io/vrender/guide/asd/Basic_Tutorial/Animate) for details. It should be noted that the animation needs to be configured as a timeline on the VTable instance to ensure the consistency of the animation.
+
+If you create a primitive in JSX, you need to add the `animation` attribute and `timeline` to the primitive tag. The `animation` attribute is an array containing the operations in the VRender animation, which will be chained after the object is instantiated, for example:
+```tsx
+<VImage
+  attribute={{
+    id: 'icon',
+    width: 50,
+    height: 50,
+    src: record.bloggerAvatar,
+    shape: 'circle',
+    anchor: [25, 25]
+  }}
+  animation={[
+    ['to', { angle: 2 * Math.PI }, 1000, 'linear'],
+    ['loop', Infinity]
+  ]}
+  timeline={table.animationManager.timeline}
+></VImage>
+```
+
+If you create a primitive in an instantiated way, you need to call `animation.setTimeline(table.animationManager.timeline);` once, for example:
+
+```ts
+import {createImage} from '@visactor/vtable/es/vrender';
+
+const icon = createImage({
+  id: 'icon',
+  width: 50,
+  height: 50,
+  src: record.bloggerAvatar,
+  shape: 'circle',
+  anchor: [25, 25]
+});
+iconGroup.add(icon);
+
+const animation = icon.animate();
+animation.setTimeline(table.animationManager.timeline);
+animation.to({ angle: 2 * Math.PI }, 1000, 'linear').loop(Infinity);
+```

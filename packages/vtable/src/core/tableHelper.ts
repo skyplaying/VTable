@@ -5,15 +5,24 @@ import { parseFont } from '../scenegraph/utils/font';
 import { getQuadProps } from '../scenegraph/utils/padding';
 import { Rect } from '../tools/Rect';
 import * as calc from '../tools/calc';
-import type { FullExtendStyle, ListTableAPI, SortState } from '../ts-types';
+import type {
+  Aggregation,
+  ColumnsDefine,
+  CustomAggregation,
+  FullExtendStyle,
+  ListTableAPI,
+  ListTableConstructorOptions,
+  SortState
+} from '../ts-types';
 import type { BaseTableAPI } from '../ts-types/base-table';
 import { defaultOrderFn } from '../tools/util';
 import type { ListTable } from '../ListTable';
+import { isValid } from '@visactor/vutils';
 
-export function createRootElement(padding: any): HTMLElement {
+export function createRootElement(padding: any, className: string = 'vtable'): HTMLElement {
   const element = document.createElement('div');
   element.setAttribute('tabindex', '0');
-  element.classList.add('vtable');
+  element.classList.add(className);
   element.style.outline = 'none';
   element.style.margin = `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`;
 
@@ -53,36 +62,52 @@ export function _dealWithUpdateDataSource(table: BaseTableAPI, fn: (table: BaseT
 /** @private */
 export function _setRecords(table: ListTableAPI, records: any[] = []): void {
   _dealWithUpdateDataSource(table, () => {
-    const data = records;
     table.internalProps.records = records;
     const newDataSource = (table.internalProps.dataSource = CachedDataSource.ofArray(
-      data,
+      records,
       table.internalProps.dataConfig,
       table.pagination,
-      table.internalProps.layoutMap.columnObjects,
-      (table.options as any).hierarchyExpandLevel ?? (table._hasHierarchyTreeHeader?.() ? 1 : undefined)
+      table.internalProps.columns,
+      table.internalProps.layoutMap.rowHierarchyType,
+      getHierarchyExpandLevel(table)
     ));
     table.addReleaseObj(newDataSource);
   });
 }
 
+function getHierarchyExpandLevel(table: ListTableAPI) {
+  if ((table.options as ListTableConstructorOptions).hierarchyExpandLevel) {
+    return (table.options as ListTableConstructorOptions).hierarchyExpandLevel;
+  } else if (table.options.groupBy) {
+    return Infinity;
+  }
+  return table._hasHierarchyTreeHeader?.() ? 1 : undefined;
+}
+
 export function _setDataSource(table: BaseTableAPI, dataSource: DataSource): void {
   _dealWithUpdateDataSource(table, () => {
+    table.internalProps.dataSource && table.internalProps.dataSource.release?.();
     if (dataSource) {
       if (dataSource instanceof DataSource) {
         table.internalProps.dataSource = dataSource;
+        table.internalProps.dataSource.supplementConfig(
+          table.pagination,
+          (table.options as ListTableConstructorOptions).columns,
+          table.internalProps.layoutMap.rowHierarchyType,
+          getHierarchyExpandLevel(table as ListTableAPI)
+        );
       } else {
-        const newDataSource = (table.internalProps.dataSource = new CachedDataSource(dataSource));
-        table.addReleaseObj(newDataSource);
+        table.internalProps.dataSource = new CachedDataSource(dataSource);
       }
     } else {
       table.internalProps.dataSource = DataSource.EMPTY;
     }
+    table.addReleaseObj(table.internalProps.dataSource);
     table.internalProps.records = null;
   });
 }
 export function _getTargetFrozenRowAt(
-  table: BaseTable,
+  table: BaseTableAPI,
   absoluteY: number
 ): {
   top: number;
@@ -112,7 +137,7 @@ export function _getTargetFrozenRowAt(
 }
 
 export function _getTargetFrozenColAt(
-  table: BaseTable,
+  table: BaseTableAPI,
   absoluteX: number
 ): {
   left: number;
@@ -248,6 +273,7 @@ export function getStyleTheme(
   const textAlign = getProp('textAlign', headerStyle, col, row, table);
   const textBaseline = getProp('textBaseline', headerStyle, col, row, table);
   const color = getProp('color', headerStyle, col, row, table);
+  const strokeColor = getProp('strokeColor', headerStyle, col, row, table);
 
   const lineHeight = getProp('lineHeight', headerStyle, col, row, table);
   const underline = getProp('underline', headerStyle, col, row, table); // boolean
@@ -292,6 +318,7 @@ export function getStyleTheme(
       fontStyle,
       fontVariant,
       fill: color,
+      stroke: strokeColor ?? false,
       textAlign,
       textBaseline,
       lineHeight: lineHeight ?? fontSize,
@@ -300,7 +327,13 @@ export function getStyleTheme(
       underlineOffset,
       lineThrough: lineThrough ? textDecorationWidth : undefined,
       ellipsis:
-        !textOverflow || textOverflow === 'clip' ? undefined : textOverflow === 'ellipsis' ? '...' : textOverflow
+        textOverflow === 'clip'
+          ? ''
+          : textOverflow === 'ellipsis'
+          ? '...'
+          : isValid(textOverflow)
+          ? textOverflow
+          : undefined
     },
     group: {
       fill: bgColor,
@@ -331,32 +364,19 @@ export function getStyleTheme(
   };
 }
 
-export function sortRecords(table: ListTable) {
-  if ((table as any).sortState) {
-    let order: any;
-    let field: any;
-    if (Array.isArray((table as any).sortState)) {
-      if ((table as any).sortState.length !== 0) {
-        ({ order, field } = (table as any).sortState?.[0]);
-      }
-    } else {
-      ({ order, field } = (table as any).sortState as SortState);
-    }
-    // 根据sort规则进行排序
-    if (order && field && order !== 'normal') {
-      const sortFunc = table._getSortFuncFromHeaderOption(undefined, field);
-      // 如果sort传入的信息不能生成正确的sortFunc，直接更新表格，避免首次加载无法正常显示内容
-      const hd = table.internalProps.layoutMap.headerObjects.find((col: any) => col && col.field === field);
-
-      // hd?.define?.sort && //如果这里也判断 那想要利用sortState来排序 但不显示排序图标就实现不了
-      table.dataSource.sort(hd.field, order, sortFunc ?? defaultOrderFn);
-    }
-  }
-}
-
 export function getCellCornerRadius(col: number, row: number, table: BaseTableAPI) {
   const tableCornerRadius = table.theme.frameStyle.cornerRadius;
-  if (tableCornerRadius) {
+  if (Array.isArray(tableCornerRadius)) {
+    if (col === 0 && row === 0) {
+      return [tableCornerRadius[0], 0, 0, 0];
+    } else if (col === table.colCount - 1 && row === 0) {
+      return [0, tableCornerRadius[1], 0, 0];
+    } else if (col === 0 && row === table.rowCount - 1) {
+      return [0, 0, 0, tableCornerRadius[3]];
+    } else if (col === table.colCount - 1 && row === table.rowCount - 1) {
+      return [0, 0, tableCornerRadius[2], 0];
+    }
+  } else if (tableCornerRadius) {
     if (col === 0 && row === 0) {
       return [tableCornerRadius, 0, 0, 0];
     } else if (col === table.colCount - 1 && row === 0) {
@@ -368,4 +388,131 @@ export function getCellCornerRadius(col: number, row: number, table: BaseTableAP
     }
   }
   return 0;
+}
+
+export function parseMarkLineGetExtendRange(markLine: any): number | 'sum' | 'max' {
+  if (markLine) {
+    if (Array.isArray(markLine)) {
+      let extendRange: number | 'sum' | 'max';
+      for (let i = 0; i < markLine.length; i++) {
+        if (markLine[i].autoRange) {
+          if (
+            markLine[i].y === 'sum' ||
+            markLine[i].x === 'sum' ||
+            markLine[i].y1 === 'sum' ||
+            markLine[i].x1 === 'sum'
+          ) {
+            return 'sum';
+          }
+          if (
+            markLine[i].y === 'max' ||
+            markLine[i].x === 'max' ||
+            markLine[i].y1 === 'max' ||
+            markLine[i].x1 === 'max'
+          ) {
+            extendRange = 'max';
+          }
+          if (typeof markLine[i].y === 'number' && typeof (extendRange ?? 0) === 'number') {
+            extendRange = Math.max(<number>extendRange ?? 0, markLine[i].y);
+          }
+          if (typeof markLine[i].x === 'number' && typeof (extendRange ?? 0) === 'number') {
+            extendRange = Math.max(<number>extendRange ?? 0, markLine[i].x);
+          }
+          if (typeof markLine[i].y1 === 'number' && typeof (extendRange ?? 0) === 'number') {
+            extendRange = Math.max(<number>extendRange ?? 0, markLine[i].y1);
+          }
+          if (typeof markLine[i].x1 === 'number' && typeof (extendRange ?? 0) === 'number') {
+            extendRange = Math.max(<number>extendRange ?? 0, markLine[i].x1);
+          }
+        }
+      }
+      return extendRange;
+    } else if (markLine.autoRange) {
+      if (markLine.y === 'sum' || markLine.x === 'sum' || markLine.y1 === 'sum' || markLine.x1 === 'sum') {
+        return 'sum';
+      }
+      if (markLine.y === 'max' || markLine.x === 'max' || markLine.y1 === 'max' || markLine.x1 === 'max') {
+        return 'max';
+      }
+      if (typeof markLine.y === 'number') {
+        return markLine.y;
+      }
+      if (typeof markLine.x === 'number') {
+        return markLine.x;
+      }
+      if (typeof markLine.y1 === 'number') {
+        return markLine.y1;
+      }
+      if (typeof markLine.x1 === 'number') {
+        return markLine.x1;
+      }
+    }
+  }
+  return undefined;
+}
+
+export function generateAggregationForColumn(table: ListTable) {
+  for (let col = 0; col < table.internalProps.columns.length; col++) {
+    const colDef = table.internalProps.columns[col];
+    if (colDef.aggregation) {
+    } else if (table.options.aggregation) {
+      let aggregation;
+      if (typeof table.options.aggregation === 'function') {
+        aggregation = table.options.aggregation({
+          col: col,
+          field: colDef.field as string
+        });
+      } else {
+        aggregation = table.options.aggregation;
+      }
+
+      if (aggregation) {
+        if (Array.isArray(aggregation)) {
+          const aggregations: (Aggregation | CustomAggregation)[] = [];
+          aggregation.forEach(item => {
+            aggregations.push(Object.assign({ showOnTop: false }, item));
+          });
+          colDef.aggregation = aggregations;
+        } else {
+          colDef.aggregation = Object.assign({ showOnTop: false }, aggregation);
+        }
+      }
+    }
+  }
+}
+
+export function checkHasAggregationOnColumnDefine(colDefs: ColumnsDefine) {
+  for (let i = 0; i < colDefs.length; i++) {
+    const colDef = colDefs[i];
+    if (colDef.aggregation) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * 检查是否有列设置了autoWidth
+ * @param table
+ * @returns
+ */
+export function checkHasColumnAutoWidth(table: BaseTableAPI) {
+  if (table.options.widthMode === 'autoWidth') {
+    return true;
+  }
+  if (
+    table.options.defaultHeaderColWidth === 'auto' ||
+    (Array.isArray(table.options.defaultHeaderColWidth) && table.options.defaultHeaderColWidth.includes('auto'))
+  ) {
+    return true;
+  }
+  const columnObjects = table.internalProps.layoutMap.columnObjects;
+  for (let i = 0; i < columnObjects.length; i++) {
+    const column = columnObjects[i];
+    if (column.width === 'auto') {
+      return true;
+    }
+  }
+
+  return false;
 }

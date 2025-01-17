@@ -5,3 +5,7 @@
 {{import: table-pivotTable}}
 
 {{import: table-pivotChart}}
+
+{{import: gantt}}
+
+{{import: calendar}}
