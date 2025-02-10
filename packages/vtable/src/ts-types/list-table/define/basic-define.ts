@@ -25,10 +25,8 @@ export interface IBasicHeaderDefine {
   showSort?: boolean;
   /** 该列不支持hover交互行为 */
   disableHover?: boolean;
-  // /** 点击表头单元格时连带body整行或整列选中 或仅选中当前单元格，默认或整行或整列选中*/
-  // headerSelectMode?: 'inline' | 'cell';
   /** 该列不支持选中 */
-  disableSelect?: boolean;
+  disableSelect?: boolean | ((col: number, row: number, table: BaseTableAPI) => boolean);
   /** 该列表头不支持hover交互行为 */
   disableHeaderHover?: boolean;
   /** 该列表头不支持选中 */
@@ -58,6 +56,8 @@ export interface IBasicColumnBodyDefine {
   field: FieldDef;
   /** @deprecated 已不维护 */
   fieldKey?: FieldKeyDef;
+  // 列的唯一标识
+  key?: string;
   fieldFormat?: FieldFormat;
   width?: number | string;
   minWidth?: number | string;
@@ -68,7 +68,9 @@ export interface IBasicColumnBodyDefine {
     | string
     | ColumnIconOption
     | (string | ColumnIconOption)[]
-    | ((args: CellInfo & { table: BaseTableAPI }) => string | ColumnIconOption | (string | ColumnIconOption)[]);
+    | ((
+        args: CellInfo & { table: BaseTableAPI }
+      ) => undefined | string | ColumnIconOption | (string | ColumnIconOption)[]);
 
   // cellType?: ColumnTypeOption | BaseColumn<T, any> | null;
 
@@ -80,6 +82,8 @@ export interface IBasicColumnBodyDefine {
   // style?: ColumnStyleOption | null;
   /** 是否对相同内容合并单元格 **/
   mergeCell?: MergeCellOption;
+  /** 是否隐藏 */
+  hide?: boolean;
   customRender?: ICustomRender;
   customLayout?: ICustomLayout;
   editor?: string | IEditor | ((args: BaseCellInfo & { table: BaseTableAPI }) => string | IEditor);

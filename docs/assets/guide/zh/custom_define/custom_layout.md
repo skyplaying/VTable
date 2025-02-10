@@ -41,7 +41,7 @@ customLayout 函数返回一个对象，该对象需要有：`rootContainer`来�
   customLayout: args => {
     const { table, row, col, rect } = args;
     const { height, width } = rect ?? table.getCellRect(col, row);
-    const record = table.getRecordByCell(col, row);
+    const record = table.getCellOriginRecord(col, row);
 
     const container = (
       <VGroup
@@ -216,13 +216,9 @@ customLayout 函数返回一个对象，该对象需要有：`rootContainer`来�
 
 其中省份按钮和城市按钮是多个 element 组合而成，整个容器的高度由布局折行结果决定，最小高度为不换行显示为一行；最大高度为三个 element 都折行显示，显示为三行
 
-## 自动行高列宽计算
-
-使用 percentCalc 方法指定百分比宽高的 container，在表格指定自适应宽高时，会依据内容的宽高自动计算出可以容纳所有内容的单元格宽高，作为本单元格实际内容宽高
-
 ## JSX 图元
 
-详细说明请参考 VRender 提供的教程：[TODO]
+详细说明请参考 VRender 提供的教程：[`VRender图元配置`](https://visactor.io/vrender/option/Group)
 
 ### 容器图元
 
@@ -246,13 +242,15 @@ customLayout 函数返回一个对象，该对象需要有：`rootContainer`来�
 | text     | text, fontSize, fontFamily, fill...                      |
 | image    | image, width, height                                     |
 
-基础自定义组件，目前支持`VTag`
+基础自定义组件，目前支持`VTag` `VRadio` `VCheckbox`
 |图元类型|基础属性|
 |:----|:----|
 |tag|text, textStyle, shape, padding...|
+|radio|checked, disabled, text, icon...|
+|checkbox|checked, disabled, text, icon...|
 
 图元可以配置`boundsPadding`属性，实现 margin 效果
-`boundsPadding: [marginLeft, marginRight, marginTop, marginBottom]`
+`boundsPadding: [marginTop, marginRight, marginBottom, marginLeft]`
 图元的 margin 会计算在图元所占的空间
 
 ### 图元状态更新及交互事件
@@ -342,14 +340,24 @@ customLayout 函数返回一个对象，该对象需要有：`rootContainer`来�
 | height | number | 图片高度                                          |
 | image  | string | HTMLImageElement \| HTMLCanvasElement \| 图片内容 |
 
+### VLine
+
+线图元
+
+| key       | type                     | description        |
+| :-------- | :----------------------- | :----------------- |
+| points    | {x: number, y: number}[] | 组成 line 的点坐标 |
+| lineWidth | number                   | 描边宽度           |
+| stroke    | string                   | 描边颜色           |
+
 ### VGroup
 
 容器
 
 | key            | type                                                                        | description                            |
 | :------------- | :-------------------------------------------------------------------------- | :------------------------------------- |
-| width          | number                                                                      | percentCalcObj\|容器宽度               |
-| height         | number                                                                      | percentCalcObj\|容器高度               |
+| width          | number                                                                      | 容器宽度               |
+| height         | number                                                                      | 容器高度               |
 | display        | 'relative' \| 'flex'                                                        | 布局模式（`flex`开启 flex 布局模式）   |
 | flexDirection  | 'row' \| 'row-reverse' \| 'column' \| 'column-reverse'                      | 主轴的方向                             |
 | flexWrap       | 'nowrap' \| 'wrap'                                                          | 单行显示还是多行显示                   |
@@ -357,23 +365,67 @@ customLayout 函数返回一个对象，该对象需要有：`rootContainer`来�
 | alignItems     | 'flex-start' \| 'flex-end' \| 'center'                                      | 交叉轴上的对齐规则                     |
 | alignContent   | 'flex-start' \| 'center' \| 'space-between' \| 'space-around'               | 主轴上的对齐规则                       |
 
+### VTag
+
+标签组件
+
+| key       | type                  | description                            |
+| :-------- | :-------------------- | :------------------------------------- |
+| textStyle | ITextGraphicAttribute | 文字样式，同 text 图元属性             |
+| shape     | TagShapeAttributes    | 标签中图表的样式配置                   |
+| space     | number                | 图标与文字之间的距离                   |
+| padding   | number[]              | 内容与边框之间的距离                   |
+| panel     | BackgroundAttributes  | 外部边框及背景的样式，同 rect 图元属性 |
+| minWidth  | number                | 最小宽度                               |
+| maxWidth  | number                | 最大宽度                               |
+
+### VRadio
+
+标签组件
+
+| key                     | type                                                                                                                          | description                |
+| :---------------------- | :---------------------------------------------------------------------------------------------------------------------------- | :------------------------- |
+| interactive             | boolean                                                                                                                       | 是否可交互                 |
+| disabled                | boolean                                                                                                                       | 是否禁用                   |
+| checked                 | boolean                                                                                                                       | 是否选中                   |
+| spaceBetweenTextAndIcon | number                                                                                                                        | 图标与文字间聚             |
+| text                    | ITextGraphicAttribute                                                                                                         | 文字样式，同 text 图元属性 |
+| circle                  | {disableFill?: IColor;checkedFill?: IColor;checkedStroke?: IColor;disableCheckedFill?: IColor;disableCheckedStroke?: IColor;} | 图标样式                   |
+
+### VCheckbox
+
+标签组件
+
+| key| type| description|
+| :--- | :--- | :------ |
+| interactive             | boolean                                                                                                                       | 是否可交互                 |
+| disabled                | boolean                                                                                                                       | 是否禁用                   |
+| checked                 | boolean                                                                                                                       | 是否选中                   |
+| indeterminate           | boolean                                                                                                                       | 是否处于不确定状态         |
+| spaceBetweenTextAndIcon | number                                                                                                                        | 图标与文字间聚             |
+| text                    | ITextGraphicAttribute                                                                                                         | 文字样式，同 text 图元属性 |
+| icon                    | {checkIconImage?: string                                                                                                      | HTMLImageElement           | HTMLCanvasElement;indeterminateIconImage?: string | HTMLImageElement | HTMLCanvasElement;} | 图标样式 |
+| box                     | {disableFill?: IColor;checkedFill?: IColor;checkedStroke?: IColor;disableCheckedFill?: IColor;disableCheckedStroke?: IColor;} | 图表背景样式               |
+
 ## CustomLayout 创建图元对象用法
 
 _- customLayout 支持对象创建的写法_
 
-CustomLayout 创建图元对象的写法，需要通过`new VTable.CustomLayout.XXX`创建图元，具体创建时配置属性可以参考[`VRender图元配置`](https://visactor.io/vrender/option/Group)
+CustomLayout 创建图元对象的写法，需要通过`createXXX`创建图元，具体创建时配置属性可以参考[`VRender图元配置`](https://visactor.io/vrender/option/Group)
 
 例如：
 
 ```ts
-const text1 = new VTable.CustomLayout.Text({
+import { createText, createGroup } from '@visactor/vtable/es/vrender';
+
+const text1 = new createText({
   text: 'text',
   fontSize: 28,
   fontFamily: 'sans-serif',
   fill: 'black'
 });
 
-const container = new VTable.CustomLayout.Container({
+const container = new createGroup({
   height,
   width
 });
@@ -385,12 +437,44 @@ return {
 };
 ```
 
-CustomLayout 常用图元与 jsx 图元对应如下：
+## 动画
 
-| JSX 图元 | CustomLayout 图元   |
-| :------- | :------------------ |
-| VRect    | CustomLayout.Rect   |
-| VCircle  | CustomLayout.Circle |
-| VText    | CustomLayout.Text   |
-| VImage   | CustomLayout.Image  |
-| VGroup   | CustomLayout.Group  |
+VTable支持在自定义布局中，使用VRender提供的动画能力，具体使用方法请参考[VRender动画](https://visactor.io/vrender/guide/asd/Basic_Tutorial/Animate)。需要注意的是动画需要配置为VTable实例上的timeline，以保证动画的一致性。
+
+如果以JSX方式创建图元，需要在图元标签上添加`animation`属性和`timeline`。`animation`属性为一个数组，内是VRender动画中的操作，会在实例化对象后进行链式调用，例如：
+```tsx
+<VImage
+  attribute={{
+    id: 'icon',
+    width: 50,
+    height: 50,
+    src: record.bloggerAvatar,
+    shape: 'circle',
+    anchor: [25, 25]
+  }}
+  animation={[
+    ['to', { angle: 2 * Math.PI }, 1000, 'linear'],
+    ['loop', Infinity]
+  ]}
+  timeline={table.animationManager.timeline}
+></VImage>
+```
+
+如果以实例化的方式创建图元，需要注意需要调用一次`animation.setTimeline(table.animationManager.timeline);`，例如：
+```ts
+import {createImage} from '@visactor/vtable/es/vrender';
+
+const icon = createImage({
+  id: 'icon',
+  width: 50,
+  height: 50,
+  src: record.bloggerAvatar,
+  shape: 'circle',
+  anchor: [25, 25]
+});
+iconGroup.add(icon);
+
+const animation = icon.animate();
+animation.setTimeline(table.animationManager.timeline);
+animation.to({ angle: 2 * Math.PI }, 1000, 'linear').loop(Infinity);
+```

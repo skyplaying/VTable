@@ -1,18 +1,16 @@
+import type { RowInfo } from '../../../../ts-types';
 import type { Group } from '../../../graphic/group';
 import { computeRowsHeight } from '../../../layout/compute-row-height';
 import type { SceneProxy } from '../proxy';
 import { updateAutoRow } from './update-auto-row';
 
-export async function dynamicSetY(y: number, isEnd: boolean, proxy: SceneProxy) {
-  // 计算变动row range
-  // const screenTopRow = proxy.table.getRowAt(y).row;
-  const screenTop = (proxy.table as any).getTargetRowAt(y + proxy.table.scenegraph.colHeaderGroup.attribute.height);
+export async function dynamicSetY(y: number, screenTop: RowInfo | null, isEnd: boolean, proxy: SceneProxy) {
   if (!screenTop) {
     return;
   }
   const screenTopRow = screenTop.row;
   const screenTopY = screenTop.top;
-  proxy.screenTopRow = screenTopRow;
+
   let deltaRow;
   if (isEnd) {
     deltaRow = proxy.bodyBottomRow - proxy.rowEnd;
@@ -88,12 +86,16 @@ async function moveCell(
     // 更新同步范围
     let syncTopRow;
     let syncBottomRow;
-    if (proxy.table.heightMode === 'autoHeight') {
+    if (proxy.table.isAutoRowHeight()) {
       syncTopRow = distStartRow;
       syncBottomRow = distEndRow;
     } else {
       const topRow = Math.max(proxy.bodyTopRow, screenTopRow - proxy.screenRowCount * 1);
-      const bottomRow = Math.min(proxy.bodyBottomRow, screenTopRow + proxy.screenRowCount * 2);
+      const bottomRow = Math.min(
+        proxy.bodyBottomRow,
+        screenTopRow + proxy.screenRowCount * 2,
+        proxy.table.rowCount - 1
+      );
       // get coincide of distStartRow&distEndRow and topRow&BottomRow
       // syncTopRow = Math.max(distStartRow, topRow);
       // syncBottomRow = Math.min(distEndRow, bottomRow);
@@ -108,9 +110,10 @@ async function moveCell(
     proxy.rowStart = direction === 'up' ? proxy.rowStart + count : proxy.rowStart - count;
     proxy.rowEnd = direction === 'up' ? proxy.rowEnd + count : proxy.rowEnd - count;
 
-    updateRowContent(syncTopRow, syncBottomRow, proxy);
+    // 本次行更新是否同步完成，列数超过limit时为false
+    const sync = updateRowContent(syncTopRow, syncBottomRow, proxy, true);
 
-    if (proxy.table.heightMode === 'autoHeight') {
+    if (proxy.table.isAutoRowHeight()) {
       // body group
       updateAutoRow(
         proxy.bodyLeftCol, // colStart
@@ -163,12 +166,16 @@ async function moveCell(
     proxy.currentRow = direction === 'up' ? proxy.currentRow + count : proxy.currentRow - count;
     proxy.totalRow = Math.max(
       0,
-      Math.min(proxy.bodyBottomRow, direction === 'up' ? proxy.totalRow + count : proxy.totalRow - count)
+      Math.min(
+        proxy.bodyBottomRow,
+        direction === 'up' ? proxy.totalRow + count : proxy.totalRow - count,
+        proxy.table.rowCount - 1
+      )
     );
     proxy.referenceRow = proxy.rowStart + Math.floor((proxy.rowEnd - proxy.rowStart) / 2);
     // proxy.referenceRow = screenTopRow;
     // proxy.rowUpdatePos = Math.min(proxy.rowUpdatePos, distStartRow);
-    if (proxy.table.heightMode === 'autoHeight') {
+    if (proxy.table.isAutoRowHeight() && sync) {
       proxy.rowUpdatePos = Math.min(proxy.rowUpdatePos, proxy.rowEnd + 1);
     } else {
       proxy.rowUpdatePos = Math.min(proxy.rowUpdatePos, distStartRow);
@@ -176,22 +183,23 @@ async function moveCell(
     proxy.rowUpdateDirection = direction;
 
     proxy.table.scenegraph.updateNextFrame();
-    if (proxy.table.heightMode !== 'autoHeight') {
-      await proxy.progress();
-    }
+    await proxy.progress();
   } else {
     const distStartRow = direction === 'up' ? proxy.rowStart + count : proxy.rowStart - count;
-    const distEndRow = direction === 'up' ? proxy.rowEnd + count : proxy.rowEnd - count;
+    const distEndRow = Math.min(
+      proxy.table.rowCount - 1,
+      direction === 'up' ? proxy.rowEnd + count : proxy.rowEnd - count
+    );
     const distStartRowY = proxy.table.getRowsHeight(proxy.bodyTopRow, distStartRow - 1);
 
     let syncTopRow;
     let syncBottomRow;
-    if (proxy.table.heightMode === 'autoHeight') {
+    if (proxy.table.isAutoRowHeight()) {
       syncTopRow = distStartRow;
       syncBottomRow = distEndRow;
     } else {
       syncTopRow = Math.max(proxy.bodyTopRow, screenTopRow - proxy.screenRowCount * 1);
-      syncBottomRow = Math.min(proxy.bodyBottomRow, screenTopRow + proxy.screenRowCount * 2);
+      syncBottomRow = Math.min(proxy.bodyBottomRow, screenTopRow + proxy.screenRowCount * 2, proxy.table.rowCount - 1);
     }
 
     computeRowsHeight(proxy.table, syncTopRow, syncBottomRow, false);
@@ -202,9 +210,9 @@ async function moveCell(
     proxy.rowStart = distStartRow;
     proxy.rowEnd = distEndRow;
 
-    updateRowContent(syncTopRow, syncBottomRow, proxy);
+    const sync = updateRowContent(syncTopRow, syncBottomRow, proxy, true);
 
-    if (proxy.table.heightMode === 'autoHeight') {
+    if (proxy.table.isAutoRowHeight()) {
       // body group
       updateAutoRow(
         proxy.bodyLeftCol, // colStart
@@ -259,11 +267,15 @@ async function moveCell(
     proxy.currentRow = direction === 'up' ? proxy.currentRow + count : proxy.currentRow - count;
     proxy.totalRow = Math.max(
       0,
-      Math.min(proxy.bodyBottomRow, direction === 'up' ? proxy.totalRow + count : proxy.totalRow - count)
+      Math.min(
+        proxy.bodyBottomRow,
+        direction === 'up' ? proxy.totalRow + count : proxy.totalRow - count,
+        proxy.table.rowCount - 1
+      )
     );
     proxy.referenceRow = proxy.rowStart + Math.floor((proxy.rowEnd - proxy.rowStart) / 2);
     // proxy.referenceRow = screenTopRow;
-    if (proxy.table.heightMode === 'autoHeight') {
+    if (proxy.table.isAutoRowHeight() && sync) {
       proxy.rowUpdatePos = proxy.rowEnd + 1;
     } else {
       proxy.rowUpdatePos = proxy.rowStart;
@@ -271,9 +283,7 @@ async function moveCell(
     proxy.rowUpdateDirection = distEndRow > proxy.bodyBottomRow - (proxy.rowEnd - proxy.rowStart + 1) ? 'down' : 'up';
 
     proxy.table.scenegraph.updateNextFrame();
-    if (proxy.table.heightMode !== 'autoHeight') {
-      await proxy.progress();
-    }
+    await proxy.progress();
   }
 }
 
@@ -376,7 +386,7 @@ function updateAllRowPosition(distStartRowY: number, count: number, direction: '
   }
 }
 
-export function updateRowContent(syncTopRow: number, syncBottomRow: number, proxy: SceneProxy) {
+export function updateRowContent(syncTopRow: number, syncBottomRow: number, proxy: SceneProxy, async = false) {
   // row header group
   for (let col = 0; col < proxy.table.frozenColCount; col++) {
     for (let row = syncTopRow; row <= syncBottomRow; row++) {
@@ -394,7 +404,18 @@ export function updateRowContent(syncTopRow: number, syncBottomRow: number, prox
     }
   }
   // body group
-  for (let col = proxy.bodyLeftCol; col <= proxy.bodyRightCol; col++) {
+  let leftCol = proxy.bodyLeftCol;
+  let rightCol = proxy.bodyRightCol;
+  let sync = true;
+  if (async) {
+    const screenLeftCol = proxy.screenLeftCol;
+    leftCol = Math.max(proxy.bodyLeftCol, screenLeftCol - proxy.screenColCount * 1);
+    rightCol = Math.min(proxy.bodyRightCol, screenLeftCol + proxy.screenColCount * 2);
+    if (leftCol !== proxy.bodyLeftCol || rightCol !== proxy.bodyRightCol) {
+      sync = false;
+    }
+  }
+  for (let col = leftCol; col <= rightCol; col++) {
     for (let row = syncTopRow; row <= syncBottomRow; row++) {
       // const cellGroup = proxy.table.scenegraph.getCell(col, row);
       const cellGroup = proxy.highPerformanceGetCell(col, row);
@@ -402,4 +423,6 @@ export function updateRowContent(syncTopRow: number, syncBottomRow: number, prox
     }
   }
   proxy.table.scenegraph.updateNextFrame();
+
+  return sync;
 }

@@ -1,9 +1,11 @@
+import { isFunction } from '@visactor/vutils';
 import { TABLE_EVENT_TYPE } from '../core/TABLE_EVENT_TYPE';
 import { Env } from '../tools/env';
 import { regUrl } from '../tools/global';
 import type { LinkColumnDefine, MousePointerCellEvent } from '../ts-types';
-import type { BaseTableAPI } from '../ts-types/base-table';
+import type { BaseTableAPI, HeaderData } from '../ts-types/base-table';
 import type { IImageColumnBodyDefine } from '../ts-types/list-table/define/image-define';
+import { getOrApply } from '../tools/helper';
 
 export function bindMediaClick(table: BaseTableAPI): void {
   if (Env.mode === 'browser') {
@@ -12,11 +14,16 @@ export function bindMediaClick(table: BaseTableAPI): void {
     table.on(TABLE_EVENT_TYPE.CLICK_CELL, (e: MousePointerCellEvent) => {
       //如果目前是在某个icon上，如收起展开按钮 则不进行其他点击逻辑
       const { col, row } = e;
+
+      if (e.target.type === 'image' && (e.target as any).role && (e.target as any).role.startsWith('icon')) {
+        // click icon
+        return;
+      }
       let cellType;
       if (table.internalProps.layoutMap.isHeader(col, row)) {
         cellType = table.isPivotTable()
-          ? table._getHeaderLayoutMap(col, row).headerType
-          : table.getHeaderDefine(col, row).headerType;
+          ? (table._getHeaderLayoutMap(col, row) as HeaderData).headerType
+          : (table.getHeaderDefine(col, row) as HeaderData).headerType;
       } else {
         cellType = table.getBodyColumnType(col, row);
       }
@@ -26,18 +33,38 @@ export function bindMediaClick(table: BaseTableAPI): void {
       const cellValue = table.getCellValue(col, row);
       const cellOriginValue = table.getCellOriginValue(col, row);
       if (cellType === 'link') {
-        const linkJump = (columnDefine as LinkColumnDefine).linkJump !== false;
+        let linkJump: boolean | undefined = getOrApply((columnDefine as LinkColumnDefine).linkJump, {
+          col,
+          row,
+          table,
+          value: cellValue,
+          dataValue: cellOriginValue,
+          cellHeaderPaths: undefined
+        });
+        linkJump = linkJump !== false;
         if (!linkJump) {
           return;
         }
 
         // 点击链接，打开相应页面
         const templateLink = (columnDefine as LinkColumnDefine).templateLink;
-        const linkDetect = (columnDefine as LinkColumnDefine).linkDetect !== false;
+        let linkDetect = getOrApply((columnDefine as LinkColumnDefine).linkDetect, {
+          col,
+          row,
+          table,
+          value: cellValue,
+          dataValue: cellOriginValue,
+          cellHeaderPaths: undefined
+        });
+        linkDetect = linkDetect !== false;
         let url;
         if (templateLink) {
           // 如果有模板链接，使用模板
           const rowData = table.getCellOriginRecord(col, row);
+          if (rowData && rowData.vtableMerge) {
+            // group title
+            return;
+          }
           const data = Object.assign(
             {
               __value: cellValue,
@@ -45,11 +72,15 @@ export function bindMediaClick(table: BaseTableAPI): void {
             },
             rowData
           );
-          const re = /\{\s*(\S+?)\s*\}/g;
-          url = templateLink.replace(re, (matchs: string, key: string) => {
-            matchs;
-            return (data as any)[key];
-          });
+          if (isFunction(templateLink)) {
+            url = templateLink(data, col, row, table);
+          } else {
+            const re = /\{\s*(\S+?)\s*\}/g;
+            url = templateLink.replace(re, (matchs: string, key: string) => {
+              matchs;
+              return (data as any)[key];
+            });
+          }
         } else if (!linkDetect) {
           url = cellValue;
         } else if (regUrl.test(cellValue)) {
@@ -58,7 +89,14 @@ export function bindMediaClick(table: BaseTableAPI): void {
         } else {
           return;
         }
-        window.open(url);
+
+        if (!url) {
+          return;
+        }
+
+        const linkTarget = (columnDefine as LinkColumnDefine).linkTarget;
+        const linkWindowFeatures = (columnDefine as LinkColumnDefine).linkWindowFeatures;
+        window.open(url, linkTarget, linkWindowFeatures);
       } else if (cellType === 'image') {
         // 点击图片，打开放大图片
         const { clickToPreview } = columnDefine as IImageColumnBodyDefine;

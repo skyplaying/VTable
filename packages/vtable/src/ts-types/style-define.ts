@@ -21,7 +21,7 @@ export interface StylePropertyFunctionArg {
   /** progressbar类型特有，表示当前数值在总体数据范围的比例 */
   percentile?: number;
   /** 单元格的表头路径信息 */
-  cellHeaderPaths: ICellHeaderPaths;
+  cellHeaderPaths?: ICellHeaderPaths;
 }
 export type ColorPropertyDefine =
   | string
@@ -81,6 +81,7 @@ export type CellStyle = {
   padding: PaddingsDef;
   textBaseline: CanvasTextBaseline;
   color: CanvasRenderingContext2D['fillStyle'];
+  strokeColor?: CanvasRenderingContext2D['fillStyle'];
   bgColor: CanvasRenderingContext2D['fillStyle'];
   // font: string;
   fontSize: number;

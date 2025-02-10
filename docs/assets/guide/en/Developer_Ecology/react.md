@@ -29,7 +29,7 @@ yarn add @visactor/react-vtable
 It is recommended to use npm package to import
 
 ```js
-import { ListTable } from "@visactor/react-vtable";
+import { ListTable } from '@visactor/react-vtable';
 ```
 
 ## Draw a simple list
@@ -41,36 +41,36 @@ Here is a simple list example code:
 ```typescript
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { ListTable } from "@visactor/react-vtable";
+import { ListTable } from '@visactor/react-vtable';
 
 const option = {
   columns: [
     {
-      field: "0",
-      caption: "name",
+      field: '0',
+      title: 'name'
     },
     {
-      field: "1",
-      caption: "age",
+      field: '1',
+      title: 'age'
     },
     {
-      field: "2",
-      caption: "gender",
+      field: '2',
+      title: 'gender'
     },
     {
-      field: "3",
-      caption: "hobby",
-    },
+      field: '3',
+      title: 'hobby'
+    }
   ],
-  records: new Array(1000).fill(["John", 18, "male", "🏀"]),
+  records: new Array(1000).fill(['John', 18, 'male', '🏀'])
 };
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
-  <ListTable option={option} height={'500px'}/>
+  <ListTable option={option} height={'500px'} />
 );
 ```
 
-Refer to [demo](https://codesandbox.io/p/sandbox/react-vtable-wjrvpq)
+Refer to [demo](../../demo-react/usage/option)
 
 ## Usage
 
@@ -78,13 +78,13 @@ React-VTable provides two styles of components for developers to use, namely uni
 
 ### Unified tags
 
-Unified tags refer to using a Table tag to receive a complete `option` configuration. If VTable is already used in the project, this method can quickly use React-VTable. The above example is a [demo](https://codesandbox.io/p/sandbox/react-vtable-wjrvpq) using unified tags.
+Unified tags refer to using a Table tag to receive a complete `option` configuration. If VTable is already used in the project, this method can quickly use React-VTable. The above example is a [demo](../../demo-react/usage/option) using unified tags.
 
 Same as VTable React-VTable provides three table types:
 
-- ListTable: List table, used to display list data [demo](https://codesandbox.io/p/sandbox/list-table-2x3qpr)
-- PivotTable: Pivot table, used to display cross-pivot data [demo](https://codesandbox.io/p/sandbox/pivot-table-jyz654)
-- PivotChart: Pivot chart, used to display cross-pivot data and display it in a chart [demo](https://codesandbox.io/p/sandbox/pivot-chart-3lwn5l)
+- ListTable: List table, used to display list data [demo](../../demo-react/usage/option)
+- PivotTable: Pivot table, used to display cross-pivot data [demo](../../demo-react/grammatical-tag/pivot-table)
+- PivotChart: Pivot chart, used to display cross-pivot data and display it in a chart [demo](../../demo-react/grammatical-tag/pivot-chart)
 
 The props of these three React components are defined as follows:
 
@@ -122,16 +122,16 @@ function App() {
   // ......
   return (
     <ListTable records={records}>
-      <ListColumn field={'0'} caption={'名称'} />
-      <ListColumn field={'1'} caption={'年龄'} />
-      <ListColumn field={'2'} caption={'性别'} />
-      <ListColumn field={'3'} caption={'爱好'} />
+      <ListColumn field={'0'} title={'名称'} />
+      <ListColumn field={'1'} title={'年龄'} />
+      <ListColumn field={'2'} title={'性别'} />
+      <ListColumn field={'3'} title={'爱好'} />
     </ListTable>
   );
 }
 ```
 
-Grammatical tag demo: [demo](https://codesandbox.io/p/sandbox/list-component-2375q5)
+Grammatical tag demo: [demo](../../demo-react/usage/grammatical-tag)
 
 #### PivotTable&PivotChart
 
@@ -145,39 +145,39 @@ The props attributes accepted by PivotTable&PivotChart are the same as options. 
 - PivotCorner: Corner configuration, consistent with the definition of corner in option [api](../../option/PivotTable#corner)
 
 ```jsx
-  return (
-    <PivotTable
-      // ......
-    >
-      <PivotColumnHeaderTitle
-        // ......
-      />
-      <PivotColumnDimension
-        // ......
-      />
-      <PivotColumnDimension
-        // ......
-      />
-      <PivotRowDimension
-        // ......
-      />
-      <PivotRowDimension
-        // ......
-      />
-      <PivotIndicator
-        // ......
-      />
-      <PivotIndicator
-        // ......
-      />
-      <PivotCorner
-        // ......
-      />
-    </PivotTable>
-  );
-
+return (
+  <PivotTable
+  // ......
+  >
+    <PivotColumnHeaderTitle
+    // ......
+    />
+    <PivotColumnDimension
+    // ......
+    />
+    <PivotColumnDimension
+    // ......
+    />
+    <PivotRowDimension
+    // ......
+    />
+    <PivotRowDimension
+    // ......
+    />
+    <PivotIndicator
+    // ......
+    />
+    <PivotIndicator
+    // ......
+    />
+    <PivotCorner
+    // ......
+    />
+  </PivotTable>
+);
 ```
-Grammatical label demo: [PivotTable demo](https://codesandbox.io/p/sandbox/pivot-component-c8w28h) [PivotChart demo](https://codesandbox.io/p/sandbox/pivot-chart-component-tw8x5c)
+
+Grammatical label demo: [PivotTable demo](../../demo-react/grammatical-tag/pivot-table) [PivotChart demo](../../demo-react/grammatical-tag/pivot-chart)
 
 #### Components outside the table
 
@@ -190,10 +190,10 @@ External components currently support:
 <PivotTable>
   // ......
   <Menu
-    // ......
+  // ......
   />
   <Tooltip
-    // ......
+  // ......
   />
 </PivotTable>
 ```
@@ -203,6 +203,7 @@ External components currently support:
 The Props of the outermost table component of the unified label or the syntactic table label inherit the event processing callback EventsProps of the table.
 
 EventsProps are defined as follows:
+
 ```ts
 interface EventsProps {
   onClickCell?: EventCallback<TYPES.TableEventHandlersEventArgumentMap['click_cell']>;
@@ -220,6 +221,8 @@ interface EventsProps {
   onResizeColumn?: EventCallback<TYPES.TableEventHandlersEventArgumentMap['resize_column']>;
   onResizeColumnEnd?: EventCallback<TYPES.TableEventHandlersEventArgumentMap['resize_column_end']>;
   onChangeHeaderPosition?: EventCallback<TYPES.TableEventHandlersEventArgumentMap['change_header_position']>;
+  onChangeHeaderPositionStart?: EventCallback<TYPES.TableEventHandlersEventArgumentMap['change_header_position_start']>;
+  onChangeHeaderPositionFail?: EventCallback<TYPES.TableEventHandlersEventArgumentMap['change_header_position_fail']>;
   onSortClick?: EventCallback<TYPES.TableEventHandlersEventArgumentMap['sort_click']>;
   onFreezeClick?: EventCallback<TYPES.TableEventHandlersEventArgumentMap['freeze_click']>;
   onScroll?: EventCallback<TYPES.TableEventHandlersEventArgumentMap['scroll']>;
@@ -246,6 +249,7 @@ interface EventsProps {
   onMouseLeaveAxis?: EventCallback<TYPES.TableEventHandlersEventArgumentMap['mouseleave_axis']>;
 
   onCheckboxStateChange?: EventCallback<TYPES.TableEventHandlersEventArgumentMap['checkbox_state_change']>;
+  onRadioStateChange?: EventCallback<TYPES.TableEventHandlersEventArgumentMap['radio_state_change']>;
   onAfterRender?: EventCallback<TYPES.TableEventHandlersEventArgumentMap['after_render']>;
   onInitialized?: EventCallback<TYPES.TableEventHandlersEventArgumentMap['initialized']>;
 
@@ -259,6 +263,7 @@ interface EventsProps {
 ```
 
 Event usage example:
+
 ```jsx
 function App() {
   const option = {
@@ -276,3 +281,35 @@ function App() {
 ```
 
 For detailed description of the event, please refer to: [Event Introduction](../../guide/Event/event_list)
+
+### register
+
+In VTable, components such as chart, editor, etc. need to be registered before use; React-VTable also provides the register method, which is used to register components. The usage is as follows:
+
+```jsx
+import { register } from '@visactor/react-vtable';
+import VChart from '@visactor/vchart';
+
+register.chartModule('vchart', VChart);
+
+// ......
+```
+
+### Keep column width
+
+In React-VTable, the update of props will trigger VTable's updateOption (or setRecords). If the column width is manually adjusted, it will cause the column width to be reset to the initial state. If you need to keep the column width, you can configure `keepColumnWidthChange` props to true. It should be noted that in the list, each `ListColumn` needs to be configured with `key` as a unique identifier, which is not required in the pivot table.
+
+```jsx
+<ListTable records={records} keepColumnWidthChange={true}>
+  <ListColumn field={'0'} title={'Name'} key={'0'} />
+  <ListColumn field={'1'} title={'Age'} key={'1'} />
+  <ListColumn field={'2'} title={'Sex'} key={'2'} />
+  <ListColumn field={'3'} title={'Hobby'} key={'3'} />
+</ListTable>
+```
+
+### Custom component
+
+To make it easy for React developers to quickly customize cell content, React-VTable provides the ability to encapsulate components and use them in cells.
+
+Refer to the tutorial for details：[Custom component](../custom_define/react-custom-component)
