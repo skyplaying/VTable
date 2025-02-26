@@ -106,6 +106,10 @@ export class MenuElement {
       e.stopPropagation();
       e.preventDefault();
     });
+    this._rootElement?.addEventListener('contextmenu', e => {
+      e.stopPropagation();
+      e.preventDefault();
+    });
     // 在移动端_rootElement的click事件在表格的touchend事件后触发，
     // 表格的touchend事件会引发selecter.start，从而清空菜单
     // 这样就会导致_rootElement的click事件无法触发
@@ -447,7 +451,8 @@ export class MenuElement {
   }
   _canBindToCell(table: BaseTableAPI, col: number, row: number): boolean {
     const rect = table.getCellRangeRelativeRect({ col, row });
-    const element = table.getElement();
+    // const element = table.getElement();
+    const element = table.internalProps.menu.parentElement ?? table.getElement();
     const { top, bottom, left, right } = rect;
     if (table.isFrozenCell(col, row)) {
       return true;
@@ -477,8 +482,14 @@ export class MenuElement {
     referencePosition?: { rect: RectProps; placement?: Placement }
   ): boolean {
     const rootElement = this._rootElement;
-    const element = table.getElement();
-    const { width: containerWidth, height: containerHeight } = table.internalProps.element.getBoundingClientRect();
+    // const element = table.getElement();
+    const element = table.internalProps.menu.parentElement ?? table.getElement();
+    const {
+      width: containerWidth,
+      height: containerHeight,
+      left: containerLeft,
+      top: containerTop
+    } = element.getBoundingClientRect();
     if (rootElement) {
       if (rootElement.parentElement !== element) {
         element.appendChild(rootElement); // 之前在做dom边缘躲避的时候放到了table.getParentElement()上，但发现不是相对定位导致位置错位
@@ -488,8 +499,8 @@ export class MenuElement {
       const maxWidth = containerWidth * 0.8;
       rootElement.style.maxWidth = `${maxWidth}px`;
       //计算弹出框的宽度
-      const rootElementWidth = rootElement.clientWidth;
-      const rootElementHeight = rootElement.clientHeight;
+      const rootElementWidth = rootElement.offsetWidth;
+      const rootElementHeight = rootElement.offsetHeight;
       let rootElementLeft;
       let rootElementTop;
       if (position) {
@@ -499,26 +510,42 @@ export class MenuElement {
         rootElementLeft = referencePosition.rect.right - rootElementWidth;
         rootElementTop = referencePosition.rect.bottom;
       }
+
+      // 获取元素的边界矩形
+      const rect = element.getBoundingClientRect();
+
+      // 计算缩放比例
+      const scaleX = rect.width / element.offsetWidth;
+      const scaleY = rect.height / element.offsetHeight;
+
       //  rootElementLeft = position.x - rootElementWidth;
       // let leftStyle = rootElementLeft;
       // 检测下方能否容纳，不能容纳向上偏移
-      if (rootElementTop + rootElementHeight > containerHeight) {
-        rootElementTop = containerHeight - rootElementHeight;
+      if (rootElementTop * scaleY + rootElementHeight > containerHeight) {
+        rootElementTop = (containerHeight - rootElementHeight) / scaleY;
         // rootElementLeft += rootElementWidth - 2;
       }
       // 偏移后上方超出canvas范围，居中显示
       if (rootElementTop < 0) {
         rootElementTop = rootElementTop / 2;
       }
-      rootElement.style.top = `${rootElementTop}px`;
+
+      let deltaTop = 0;
+      let deltaLeft = 0;
+      if (table.getElement() !== element) {
+        const { left, top } = table.getElement().getBoundingClientRect();
+        deltaTop = top - containerTop;
+        deltaLeft = left - containerLeft;
+      }
+      rootElement.style.top = `${rootElementTop + deltaTop}px`;
 
       // 判断如果超出左右范围则靠边显示
       if (rootElementLeft < 0) {
         rootElementLeft = 0;
-      } else if (rootElementLeft + rootElementWidth > containerWidth) {
-        rootElementLeft = containerWidth - rootElementWidth;
+      } else if (rootElementLeft * scaleX + rootElementWidth > containerWidth) {
+        rootElementLeft = (containerWidth - rootElementWidth) / scaleX;
       }
-      rootElement.style.left = `${rootElementLeft}px`;
+      rootElement.style.left = `${rootElementLeft + deltaLeft}px`;
 
       return true;
     }
@@ -527,12 +554,9 @@ export class MenuElement {
   _bindSecondElement(table: BaseTableAPI, col: number, row: number, x: number, y: number): boolean {
     const secondElement = this._secondElement;
     const rootElement = this._rootElement;
-    const element = table.getElement();
-    const {
-      width: containerWidth,
-      left: containerLeft,
-      top: containerTop
-    } = table.internalProps.element.getBoundingClientRect();
+    // const element = table.getElement();
+    const element = table.internalProps.menu.parentElement ?? table.getElement();
+    const { width: containerWidth, left: containerLeft, top: containerTop } = element.getBoundingClientRect();
     const { x: rootLeft, y: rootTop, width: rootWidth } = rootElement.getBoundingClientRect();
 
     if (secondElement) {

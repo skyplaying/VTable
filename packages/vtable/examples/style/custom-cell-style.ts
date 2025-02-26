@@ -346,8 +346,8 @@ export function createTable() {
             })`;
           },
           barColor: 'transparent'
-        }),
-        cellType: 'progressbar'
+        })
+        // cellType: 'progressbar'
         // headerType: 'MULTILINETEXT',
       },
       {
@@ -357,7 +357,7 @@ export function createTable() {
           // if (rec.rowDimensions[0].value === '东北') return `${rec.dataValue}%`;
           return value;
         },
-        cellType: 'progressbar',
+        // cellType: 'progressbar',
         // headerStyle: {
         //   bgColor(arg: VTable.TYPES.StylePropertyFunctionArg) {
         //     if (
@@ -467,7 +467,10 @@ export function createTable() {
     showFrozenIcon: false, //显示VTable内置冻结列图标
     widthMode: 'autoWidth', // 宽度模式：standard 标准模式； adaptive 自动填满容器
     defaultRowHeight: 80,
-    columnResizeType: 'indicator', // 'column' | 'indicator' | 'all'
+
+    resize: {
+      columnResizeType: 'indicator' // 'column' | 'indicator' | 'all'
+    },
     dragHeaderMode: 'all',
 
     customCellStyle: [
@@ -475,6 +478,12 @@ export function createTable() {
         id: 'custom-1',
         style: {
           bgColor: 'red'
+        }
+      },
+      {
+        id: 'custom-2',
+        style: {
+          color: 'green'
         }
       }
     ],
@@ -485,6 +494,21 @@ export function createTable() {
           row: 4
         },
         customStyleId: 'custom-1'
+      },
+      {
+        cellPosition: {
+          range: {
+            start: {
+              col: 2,
+              row: 3
+            },
+            end: {
+              col: 4,
+              row: 5
+            }
+          }
+        },
+        customStyleId: 'custom-2'
       }
     ]
   };

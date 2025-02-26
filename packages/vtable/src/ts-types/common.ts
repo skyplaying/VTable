@@ -3,6 +3,7 @@ import type { ColumnStyleOption, ColumnTypeOption } from './column';
 import type { ColumnData } from './list-table/layout-map/api';
 import type { CellLocation, CellRange, FieldData, FieldDef } from './table-engine';
 import type { Rect } from '../tools/Rect';
+import type { BaseTableAPI } from './base-table';
 
 export type MaybePromise<T> = T | Promise<T>;
 
@@ -33,7 +34,17 @@ export type LineDashsDef = number[] | (number[] | null)[];
 export type shadowColorsDef = { from: string; to: string } | ({ from: string; to: string } | null)[];
 export type PaddingsDef = number | (number | null)[];
 export type SortOption = boolean | ((v1: any, v2: any, order: SortOrder) => -1 | 0 | 1);
-export type MergeCellOption = boolean | ((v1: any, v2: any) => boolean);
+export type MergeCellOption =
+  | boolean
+  | ((
+      v1: any,
+      v2: any,
+      extraArgs: {
+        source: CellPosition;
+        target: CellPosition;
+        table: BaseTableAPI;
+      }
+    ) => boolean);
 export type BaseCellInfo = {
   row: number;
   col: number;
@@ -41,6 +52,12 @@ export type BaseCellInfo = {
   value: FieldData;
   /**原始值 */
   dataValue: FieldData;
+};
+export type MergeCellInfo = {
+  colStart: number;
+  colEnd: number;
+  rowStart: number;
+  rowEnd: number;
 };
 export type CellInfo = {
   col: number;
@@ -76,17 +93,9 @@ export type IListTableCellHeaderPaths = {
 };
 export type IPivotTableCellHeaderPaths = {
   /** 列表头各级path表头信息 */
-  readonly colHeaderPaths?: {
-    dimensionKey?: string;
-    indicatorKey?: string;
-    value?: string;
-  }[];
+  readonly colHeaderPaths?: IDimensionInfo[];
   /** 行表头各级path表头信息 */
-  readonly rowHeaderPaths?: {
-    dimensionKey?: string;
-    indicatorKey?: string;
-    value?: string;
-  }[];
+  readonly rowHeaderPaths?: IDimensionInfo[];
   cellLocation: CellLocation;
 };
 
@@ -95,6 +104,7 @@ export interface IDimensionInfo {
   value?: string;
   indicatorKey?: string;
   isPivotCorner?: boolean;
+  virtual?: boolean;
 }
 
 /**
@@ -127,7 +137,7 @@ export enum HighlightScope {
   'none' = 'none'
 }
 
-export type SortOrder = 'asc' | 'desc' | 'normal';
+export type SortOrder = 'asc' | 'desc' | 'normal' | 'ASC' | 'DESC' | 'NORMAL';
 
 export type CustomCellStyle = {
   id: string;

@@ -32,7 +32,7 @@ VTable is not just a high-performance multidimensional data analysis table, but 
 
 <div align="center">
 
-English| [简体中文](./README.zh-CN.md)
+English | [简体中文](./README.zh-CN.md) | [日本語](./README.ja-JP.md)
 
 </div>
 
@@ -57,7 +57,13 @@ The core capabilities are as follows:
 This repository includes the following packages:
 
 1. packages/vtable: The core code repository of VTable
-2. docs: Include VTable site tutorials, demos,apis and options, and also contains all Chinese and English documents.
+2. packages/vtable-gantt: Gantt chart component code
+3. packages/vtable-editors: Table editor component code
+4. packages/vtable-export: Table export tool code
+5. packages/vtable-search: Table search tool code
+6. packages/react-vtable: React version of the table component
+7. packages/vue-vtable: Vue version of the table component
+8. docs: Include VTable site tutorials, demos,apis and options, and also contains all Chinese and English documents.
 
 # Usage
 
@@ -79,52 +85,51 @@ yarn add @visactor/vtable
 // this demo you can run on codesanbox https://codesandbox.io/s/vtable-simple-demo-g8q738
 import * as VTable from '@visactor/vtable';
 
-const columns =[
-    {
-        "field": "Order ID",
-        "caption": "Order ID",
-    },
-    {
-        "field": "Customer ID",
-        "caption": "Customer ID",
-    },
-    {
-        "field": "Product Name",
-        "caption": "Product Name",
-    },
-    {
-        "field": "Sales",
-        "caption": "Sales",
-    },
-    {
-        "field": "Profit",
-        "caption": "Profit",
-    }
+const columns = [
+  {
+    field: 'Order ID',
+    caption: 'Order ID'
+  },
+  {
+    field: 'Customer ID',
+    caption: 'Customer ID'
+  },
+  {
+    field: 'Product Name',
+    caption: 'Product Name'
+  },
+  {
+    field: 'Sales',
+    caption: 'Sales'
+  },
+  {
+    field: 'Profit',
+    caption: 'Profit'
+  }
 ];
 
 const option = {
   container: document.getElementById(CONTAINER_ID),
-  records:[
+  records: [
     {
-      "Order ID": "CA-2018-156720",
-      "Customer ID": "JM-15580",
-      "Product Name": "Bagged Rubber Bands",
-      "Sales": "3.024",
-      "Profit": "-0.605"
+      'Order ID': 'CA-2018-156720',
+      'Customer ID': 'JM-15580',
+      'Product Name': 'Bagged Rubber Bands',
+      Sales: '3.024',
+      Profit: '-0.605'
     },
     {
-      "Order ID": "CA-2018-115427",
-      "Customer ID": "EB-13975",
-      "Product Name": "GBC Binding covers",
-      "Sales": "20.72",
-      "Profit": "6.475"
-    },
+      'Order ID': 'CA-2018-115427',
+      'Customer ID': 'EB-13975',
+      'Product Name': 'GBC Binding covers',
+      Sales: '20.72',
+      Profit: '6.475'
+    }
     // ...
   ],
-  columns,
+  columns
 };
 const tableInstance = new VTable.ListTable(option);
-
 ```
 
 ##
@@ -153,7 +158,10 @@ $ cd packages/vtable
 $ rushx demo
 # start site development server, execute in file path: ./
 $ rush docs
+# after execut git commit, please run the following command to update the change log. Please execute in file path: ./
+$ rush change-all
 ```
+
 # 📖 Documents
 
 After installation & clone & update, run docs to preview VTable documents locally.
@@ -162,6 +170,7 @@ After installation & clone & update, run docs to preview VTable documents locall
 # start vtable document server. execute in file path: ./
 $ rush docs
 ```
+
 ## 🔗 Related Links
 
 - [Official website](https://visactor.io/vtable)
@@ -169,17 +178,17 @@ $ rush docs
 
 # 💫 Ecosystem
 
-| Project                                                     | Description                                                                            |
-| ----------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| [React-VTable](https://www.visactor.io/vtable/guide/Developer_Ecology/react)    |  VTable  in React component                                                          |
-
+| Project                                                                      | Description               |
+| ---------------------------------------------------------------------------- | ------------------------- |
+| [React-VTable](https://www.visactor.io/vtable/guide/Developer_Ecology/react) | VTable in React component |
 
 # ⭐️ Star History
+
 [![Star History Chart](https://api.star-history.com/svg?repos=visactor/vtable&type=Date)](https://star-history.com/#visactor/vtable&Date)
 
 # 🤝 Contribution
 
-If you would like to contribute, please read the [Code of Conduct ](./CODE_OF_CONDUCT.md) and [ Guide](./CONTRIBUTING.zh-CN.md) first。
+If you would like to contribute, please read the [Code of Conduct ](./CODE_OF_CONDUCT.md) and [ Guide](./CONTRIBUTING.md) first。
 
 Small streams converge to make great rivers and seas!
 

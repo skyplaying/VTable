@@ -38,6 +38,9 @@ export class NumberRangeMap {
   }
 
   add(position: number, value: number) {
+    if (!isValid(value)) {
+      return;
+    }
     const defaultValue = this.table.getRowHeight(position);
     if (!this.data.has(position)) {
       this._keys.push(position);
@@ -65,8 +68,15 @@ export class NumberRangeMap {
   }
 
   put(position: number, newValue: number) {
+    if (!isValid(newValue)) {
+      return;
+    }
     if (this.data.has(position)) {
       const oldValue = this.data.get(position);
+
+      if (oldValue === newValue) {
+        return;
+      }
       this.data.set(position, newValue);
       const difference = newValue - oldValue;
       this.totalSum += difference;
@@ -168,7 +178,7 @@ export class NumberRangeMap {
   }
 
   dealDiffenence() {
-    for (const [sumPos, sum] of this.cumulativeSum) {
+    for (const [sumPos] of this.cumulativeSum) {
       for (const [difPos, difference] of this.difference) {
         if (sumPos >= difPos) {
           const oldSum = this.cumulativeSum.get(sumPos);
@@ -182,6 +192,10 @@ export class NumberRangeMap {
 
   // add and reorder
   insert(position: number, value?: number) {
+    // clear all sum cover position
+    for (let i = position; i <= this.getLastIndex(); i++) {
+      this.cumulativeSum.delete(i);
+    }
     const lastIndex = this.getLastIndex() + 1;
     this.adjustOrder(position, position + 1, lastIndex - position);
     if (isValid(value)) {
@@ -204,6 +218,12 @@ export class NumberRangeMap {
     if (!this.has(position)) {
       return;
     }
+
+    // clear all sum cover position
+    for (let i = position; i <= this.getLastIndex(); i++) {
+      this.cumulativeSum.delete(i);
+    }
+
     const lastIndex = this.getLastIndex();
 
     this.adjustOrder(position + 1, position, lastIndex - position);
@@ -280,7 +300,7 @@ export class NumberRangeMap {
       //先将target部分的值存起来
       const targetVals = [];
       const sourceVals = [];
-      for (let i = indexFirst(keys, targetIndex); i < sourceIndex + sourceCount; i++) {
+      for (let i = indexFirst(keys, targetIndex); i < indexFirst(keys, sourceIndex) + sourceCount; i++) {
         const key = keys[i];
         if (key >= sourceIndex && key < sourceIndex + sourceCount) {
           sourceVals.push(this.get(key));
@@ -299,7 +319,7 @@ export class NumberRangeMap {
       //先将target部分的值存起来
       const targetVals = [];
       const sourceVals = [];
-      for (let i = indexFirst(keys, sourceIndex); i < targetIndex + targetCount; i++) {
+      for (let i = indexFirst(keys, sourceIndex); i < indexFirst(keys, targetIndex) + targetCount; i++) {
         const key = keys[i];
         if (key >= sourceIndex && key < sourceIndex + sourceCount) {
           sourceVals.push(this.get(key));

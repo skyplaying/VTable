@@ -56,6 +56,7 @@ export interface IStyleOption {
   textAlign?: TextAlignType;
   textBaseline?: TextBaselineType;
   color?: ColorPropertyDefine;
+  strokeColor?: ColorPropertyDefine;
 
   fontSize?: FontSizePropertyDefine;
   fontFamily?: FontFamilyPropertyDefine;
@@ -92,11 +93,13 @@ export interface IStyleOption {
   // dropDownHoverIcon?: IconPropertyDefine;
   cursor?: CursorPropertyDefine;
 
-  textStick?: boolean;
+  textStick?: boolean | 'vertical' | 'horizontal';
   textStickBaseOnAlign?: boolean;
 
   marked?: MarkedPropertyDefine;
 }
+
+export const cellStyleKeys = ['bgColor', 'color', 'strokeColor', 'borderColor', 'linkColor']; //  keys of style not change cell layout
 
 export interface ITextStyleOption extends IStyleOption {
   // lineHeight?: string | number;//移入IStyleOption中 单行文本类型也可以有
@@ -120,7 +123,7 @@ export type ColumnStyleOption =
   | ((styleArg: StylePropertyFunctionArg) => IStyleOption | ITextStyleOption | IImageStyleOption);
 
 export type HeaderStyleOption =
-  | (IStyleOption & { textStick?: boolean }) //表头可以配置吸附
+  | (IStyleOption & { textStick?: boolean | 'vertical' | 'horizontal' }) //表头可以配置吸附
   | ITextStyleOption
   | IImageStyleOption
   // | ISortHeaderStyleOption
@@ -185,6 +188,23 @@ export type CheckboxStyleOption = {
   checkboxStyle?: CheckboxStyle;
 } & ITextStyleOption;
 
+export type RadioStyleOption = {
+  size?: number;
+  spaceBetweenTextAndIcon?: number;
+  spaceBetweenRadio?: number;
+  radioStyle?: RadioStyle;
+} & ITextStyleOption;
+
+export type SwitchStyleOption = {
+  size?: number;
+  spaceBetweenTextAndCircle?: number;
+  switchStyle?: SwitchStyle;
+} & ITextStyleOption;
+
+export type ButtonStyleOption = {
+  buttonStyle?: ButtonStyle;
+} & ITextStyleOption;
+
 export type CheckboxStyle = {
   // 选择框尺寸
   size?: number;
@@ -211,3 +231,80 @@ export type CheckboxStyle = {
   // indeterminate状态图标url
   indeterminateIconImage?: string;
 };
+
+export type RadioStyle = {
+  // 选择框尺寸
+  size?: number;
+  // 选择框与文字间距
+  spaceBetweenTextAndIcon?: number;
+  // 单元格内多个单选框，单选框直接的间距
+  spaceBetweenRadio?: number;
+
+  // 单选框环形图标外半径（会覆盖size）
+  outerRadius?: number;
+  // 单选框环形图标内半径
+  innerRadius?: number;
+
+  // 未选中状态填充颜色
+  defaultFill?: string;
+  // 未选中状态描边颜色
+  defaultStroke?: string;
+  // disable状态填充颜色
+  disableFill?: string;
+  // checked状态填充颜色
+  checkedFill?: string;
+  // checked状态描边颜色
+  checkedStroke?: string;
+  // checked状态填充颜色
+  disableCheckedFill?: string;
+  // checked状态描边颜色
+  disableCheckedStroke?: string;
+};
+
+export type SwitchStyle = {
+  // 开关与文字间距
+  spaceBetweenTextAndCircle?: number;
+
+  // 圆圈半径
+  circleRadius?: number;
+  // 开关宽度
+  boxWidth?: number;
+  // 开关高度
+  boxHeight?: number;
+
+  // 未选中状态box填充颜色
+  checkedFill?: string;
+  // 未选中状态box填充颜色
+  uncheckedFill?: string;
+  // disable&checked状态box填充颜色
+  disableCheckedFill?: string;
+  // disable&unchecked状态box填充颜色
+  disableUncheckedFill?: string;
+  // 圆圈填充颜色
+  circleFill?: string;
+};
+
+export interface ButtonStyle {
+  /** 按钮背景色 */
+  buttonColor?: string;
+  /** 按钮边框颜色 */
+  buttonBorderColor?: string;
+  /** 按钮边框宽度 */
+  buttonLineWidth?: number;
+  /** 按钮圆角 */
+  buttonBorderRadius?: number;
+  /** 按钮hover状态背景色 */
+  buttonHoverColor?: string;
+  /** 按钮hover状态边框颜色 */
+  buttonHoverBorderColor?: string;
+  /** 按钮hover状态文本颜色 */
+  buttonTextHoverColor?: string;
+  /** 按钮disable状态背景色 */
+  buttonDisableColor?: string;
+  /** 按钮disable状态边框颜色 */
+  buttonDisableBorderColor?: string;
+  /** 按钮disable状态文本颜色 */
+  buttonTextDisableColor?: string;
+  /** 按钮内边距 */
+  buttonPadding?: number;
+}

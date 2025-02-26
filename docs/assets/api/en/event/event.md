@@ -23,6 +23,7 @@ Supported event types:
   MOUSEDOWN_CELL: 'mousedown_cell',
   MOUSEUP_CELL: 'mouseup_cell',
   SELECTED_CELL: 'selected_cell',
+  SELECTED_CLEAR: 'selected_clear',
   KEYDOWN: 'keydown',
   MOUSEENTER_TABLE: 'mouseenter_table',
   MOUSELEAVE_TABLE: 'mouseleave_table',
@@ -30,12 +31,24 @@ Supported event types:
   MOUSEENTER_CELL: 'mouseenter_cell',
   MOUSELEAVE_CELL: 'mouseleave_cell',
   CONTEXTMENU_CELL: 'contextmenu_cell',
+  MOUSEENTER_TABLE: 'mouseenter_table',
+  MOUSELEAVE_TABLE: 'mouseleave_table',
+  MOUSEDOWN_TABLE: 'mousedown_table',
   RESIZE_COLUMN: 'resize_column',
   RESIZE_COLUMN_END: 'resize_column_end',
+  RESIZE_ROW: 'resize_row',
+  RESIZE_ROW_END: 'resize_row_end',
   CHANGE_HEADER_POSITION: 'change_header_position',
+  CHANGE_HEADER_POSITION_START: 'change_header_position_start',
+  CHANGING_HEADER_POSITION: 'changing_header_position',
+  CHANGE_HEADER_POSITION_FAIL: 'changing_header_position_fail',
   SORT_CLICK: 'sort_click',
+  PIVOT_SORT_CLICK: 'pivot_sort_click',
+  AFTER_SORT: 'after_sort',
   FREEZE_CLICK: 'freeze_click',
   SCROLL: 'scroll',
+  SCROLL_HORIZONTAL_END: 'scroll_horizontal_end',
+  SCROLL_VERTICAL_END: 'scroll_vertical_end',
   DROPDOWN_MENU_CLICK: 'dropdown_menu_click',
   MOUSEOVER_CHART_SYMBOL: 'mouseover_chart_symbol',
   DRAG_SELECT_END: 'drag_select_end',
@@ -47,12 +60,15 @@ Supported event types:
   ICON_CLICK: 'icon_click',
   // Pivot table-specific events
    DRILLMENU_CLICK: 'drillmenu_click',
-  PIVOT_SORT_CLICK: 'pivot_sort_click'
+  ......
 }`
+
 ## INITIALIZED
+
 Triggered after successful initialization is completed
 
-## AFTER_RENDER	
+## AFTER_RENDER
+
 Triggered after each rendering is completed
 
 ## onVChartEvent
@@ -98,47 +114,51 @@ Cell selected state change event
 
 {{ use: SelectedCellEvent() }}
 
+## SELECTED_CLEAR
+
+Cell selected state all be cleard, when click table's blank region, this event will be triggered.
+
 ## KEYDOWN
 
 keystroke event
 
 {{ use: KeydownEvent() }}
 
-## MOUSEENTER_TABLE
-
-Mouse over form event
-
-Refer to the parameter types introduced in the CLICK_CELL event for the parameter types of the event callback function.
-
-## MOUSELEAVE_TABLE
-
-Mouse off form event
-
-Refer to the parameter types introduced in the CLICK_CELL event for the parameter types of the event callback function.
-
 ## MOUSEMOVE_CELL
 
 Mouse over a cell event
 
-Refer to the parameter types introduced in the CLICK_CELL event for the parameter types of the event callback function.
+Refer to the parameter types introduced in the CLICK_CELL event for the parameter types of the event callback function (some parameters may be omitted and can be obtained through the corresponding interfaces).
 
 ## MOUSEENTER_CELL
 
 Mouse into cell event
 
-Refer to the parameter types introduced in the CLICK_CELL event for the parameter types of the event callback function.
+Refer to the parameter types introduced in the CLICK_CELL event for the parameter types of the event callback function. (some parameters may be omitted and can be obtained through the corresponding interfaces).
 
 ## MOUSELEAVE_CELL
 
 Mouse-out-of-cell event
 
-Refer to the parameter types introduced in the CLICK_CELL event for the parameter types of the event callback function.
+Refer to the parameter types introduced in the CLICK_CELL event for the parameter types of the event callback function. (some parameters may be omitted and can be obtained through the corresponding interfaces).
 
 ## CONTEXTMENU_CELL
 
 Cell right-click events
 
 {{ use: MousePointerMultiCellEvent() }}
+
+## MOUSEENTER_TABLE
+
+This event is triggered when the mouse enters the table area
+
+## MOUSELEAVE_TABLE
+
+This event is triggered when the mouse leaves the table area.
+
+## MOUSEDOWN_TABLE
+
+This event is triggered when the mouse is pressed in the table area.
 
 ## RESIZE_COLUMN
 
@@ -163,60 +183,222 @@ Event callback function parameter types.
 
 {
 col: number.
-columns: number[]
+colWidths: number[]
+}
+
+``
+
+## RESIZE_ROW
+
+Row height adjustment events.
+
+Event callback function parameter types.
+``
+
+{
+row: number;
+rowHeight: number
+}
+
+``
+
+## RESIZE_ROW_END
+
+Row height adjustment end event.
+
+Event callback function parameter types.
+``
+
+{
+row: number;
+rowHeight: number
 }
 
 ``
 
 ## CHANGE_HEADER_POSITION
 
-Events for dragging the table header to move its position
+Events for dragging table headers or rows to move positions
 
-Event callback function parameter types.
-``
+Parameter type of event callback function:
+
+```
 {
-source: CellAddress.
-target: CellAddress
+  source: CellAddress;
+  target: CellAddress
 }
 
-``
+```
+
+## CHANGE_HEADER_POSITION_FAIL
+
+Events for dragging table headers or rows to move positions when failed
+
+Parameter type of event callback function:
+
+```
+{
+  source: CellAddress;
+  target: CellAddress
+}
+
+```
+
+## CHANGE_HEADER_POSITION_START
+
+Drag the header or row to move the position to start the event
+
+Parameter type of event callback function:
+
+```
+{
+  col: number;
+  row: number;
+  x: number;
+  y: number;
+  backX: number;
+  lineX: number;
+  backY: number;
+  lineY: number;
+  event: Event;
+};
+
+```
+
+## CHANGING_HEADER_POSITION
+
+Drag the header or drag the row to move the process event
+
+Parameter type of event callback function:
+
+```
+{
+  col: number;
+  row: number;
+  x: number;
+  y: number;
+  backX: number;
+  lineX: number;
+  backY: number;
+  lineY: number;
+  event: Event;
+};
+
+```
 
 ## SORT_CLICK
 
-Click on the sort icon event.
+Click on the sort icon event. **ListTable proprietary event**
 
 Event callback function parameter types.
-`  {
+
+```
+  {
     field: string;
-    order: 'asc' | 'desc' | 'normal'.
-  }`
+    order: 'asc' | 'desc' | 'normal';
+     event: Event;
+  }
+```
+
+## PIVOT_SORT_CLICK
+
+Sort icon click event in the pivot table. **PivotTable proprietary events！**
+
+Event callback function parameter types.
+
+```
+    {
+      col: number.
+      row: number.
+      order: 'asc' | 'desc' | 'normal'.
+      dimensionInfo: IDimensionInfo[];
+      cellLocation: CellLocation.
+    }
+```
+
+Among them:
+{{ use: common-IDimensionInfo()}}
+{{ use: CellLocation()}}
+
+## AFTER_SORT
+
+after execute sort logic. **ListTable proprietary event**
+
+Event callback function parameter types.
+
+```
+  {
+    field: string;
+    order: 'asc' | 'desc' | 'normal';
+     event: Event;
+  }
+```
 
 ## FREEZE_CLICK
 
 Click on the fixed column icon to freeze or unfreeze the event.
 
 Event callback function parameter types.
-`{
+
+```
+{
   col: number;
   row: number
   fields: string[];
   colCount: number;
-}`
+}
+```
 
 ## SCROLL
 
 Scroll form events.
 
 Event callback function parameter types.
-`    {
+
+```
+    {
       scrollLeft: number;
       scrollTop: number;
       scrollWidth: number;
       scrollHeight: number;
       viewWidth: number;
       viewHeight: number;
-    }`
+    }
+```
 
+## SCROLL_HORIZONTAL_END
+
+Scroll horizontally to the right to end the event
+
+Event callback function parameter types.
+
+```
+    {
+    scrollLeft: number;
+    scrollTop: number;
+    scrollWidth: number;
+    scrollHeight: number;
+    viewWidth: number;
+    viewHeight: number;
+}
+```
+
+## SCROLL_VERTICAL_END
+
+Vertical scroll bar scrolls to the end position
+
+Event callback function parameter types.
+
+```
+    {
+    scrollLeft: number;
+    scrollTop: number;
+    scrollWidth: number;
+    scrollHeight: number;
+    viewWidth: number;
+    viewHeight: number;
+}
+```
 
 ## MOUSEOVER_CHART_SYMBOL
 
@@ -263,13 +445,16 @@ Tree structure expand and collapse click events
 Displays menu events.
 
 Event callback function parameter types.
-`    {
+
+```
+   {
       x: number.
       y: number.
       col: number.
       row: number.
       type: 'dropDown' | 'contextmenu' | 'custom';
-    }`
+    }
+```
 
 ## HIDE_MENU
 
@@ -280,7 +465,9 @@ Hide menu events
 icon icon click event.
 
 Event callback function parameter types.
-`    {
+
+```
+    {
       name: string;
       col: number.
       row: number.
@@ -288,23 +475,8 @@ Event callback function parameter types.
       y: number.
       funcType?: IconFuncTypeEnum | string;
       icon: Icon.
-    }`
-
-## PIVOT_SORT_CLICK
-
-Sort icon click event in the pivot table. **PivotTable proprietary events！**
-
-Event callback function parameter types.
-`    {
-      col: number.
-      row: number.
-      order: 'asc' | 'desc' | 'normal'.
-      dimensionInfo: IDimensionInfo[];
-      cellLocation: CellLocation.
-    }`
-Among them:
-{{ use: common-IDimensionInfo()}}
-{{ use: CellLocation()}}
+    }
+```
 
 ## LEGEND_ITEM_CLICK
 
@@ -335,6 +507,7 @@ The parameter type of the event callback function:
 ```
    { model: any; value: any; event: PointerEvent };
 ```
+
 ## LEGEND_CHANGE
 
 Color legend, size legend, this event is triggered after the user operates the legend range. **Legend exclusive event**
@@ -365,6 +538,7 @@ The parameter type of the event callback function:
 Same as **MOUSEENTER_AXIS**
 
 ## COPY_DATA
+
 Cell content copy event.
 
 Parameter types of event callback function:
@@ -374,25 +548,84 @@ Parameter types of event callback function:
 ```
 
 ## CHANGE_CELL_VALUE
+
 Event that changes the cell value.
 
 Parameter types of event callback function:
 
 ```
-{ col: number; row: number; rawValue: string | number; changedValue: string | number };
+{ col: number; row: number; rawValue: string | number; currentValue: string | number; changedValue: string | number };
 ```
 
 ## CHECKBOX_STATE_CHANGE
-Change the checkbox checkbox state. **ListTable table exclusive event**
+
+Change the checkbox state. **ListTable table exclusive event**
 
 Parameter types of event callback function:
 
 ```
-{ 
-  col: number; 
-  row: number; 
+{
+  col: number;
+  row: number;
   alue: string | number;
   dataValue: string | number;
   checked: boolean;
 };
 ```
+
+## RADIO_STATE_CHANGE
+
+Change the radio state. **ListTable table exclusive event**
+
+Parameter types of event callback function:
+
+```
+{
+  col: number;
+  row: number;
+  alue: string | number;
+  dataValue: string | number;
+  radioIndexInCell: boolean | number;
+};
+```
+
+If there is only one radio button in the cell, radioIndexInCell is of type boolean, indicating whether it is selected; if there are multiple radio buttons in the cell, radioIndexInCell is of type number, indicating the index of the selected radio button.
+
+## SWITCH_STATE_CHANGE
+
+Switch state change event. **ListTable table exclusive event**
+
+Parameter types of event callback function:
+
+```
+{
+col: number;
+row: number;
+value: string | number;
+dataValue: string | number;
+checked: boolean;
+};
+
+```
+
+## BUTTON_CLICK
+
+Button click event. **ListTable table exclusive event**
+
+Parameter types of event callback function:
+
+```
+{
+col: number;
+row: number;
+event: Event;
+};
+```
+
+## EMPTY_TIP_CLICK
+
+Empty data prompt click event.
+
+## EMPTY_TIP_DBLCLICK
+
+Empty data prompt double-click event.

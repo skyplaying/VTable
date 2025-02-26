@@ -60,6 +60,9 @@ IStyleOption 类型结构如下：
   isImage = ${isImage},
   isProgressbar = ${isProgressbar},
   isCheckbox = ${isCheckbox},
+  isRadio = ${isRadio},
+  isSwitch = ${isSwitch},
+  isButton = ${isButton},
 ) }}
 
 ${prefix} headerIcon(string|Object|Array)
@@ -70,7 +73,7 @@ ${prefix} headerIcon(string|Object|Array)
 string | ColumnIconOption | (string | ColumnIconOption)[];
 ```
 
-ColumnIconOption 具体配置可参考[定义](/zh/option.html#ListTable-columns-text.icon.ColumnIconOption定义：)
+ColumnIconOption 具体配置可参考[定义](./ListTable-columns-text#icon.ColumnIconOption)
 
 ${prefix} icon(string|Object|Array|Funciton)
 
@@ -84,17 +87,23 @@ icon?:
     | ((args: CellInfo) => string | ColumnIconOption | (string | ColumnIconOption)[]);
 ```
 
-#${prefix}ColumnIconOption 定义：
+#${prefix}ColumnIconOption
 
 ```
-type ColumnIconOption = ImageIcon | SvgIcon;
+type ColumnIconOption = ImageIcon | SvgIcon | TextIcon;
 ```
 
 #${prefix}ImageIcon(Object)
+type 配置成 'image'。需要配置图片地址在 src 中
 {{ use: image-icon(  prefix = '##' + ${prefix}) }}
 
 #${prefix}SvgIcon(Object)
+type 配置成 'svg'。需要配置 svg 地址或者 svg 完整文件字符串在 svg 中
 {{ use: svg-icon(  prefix = '##' + ${prefix}) }}
+
+#${prefix}TextIcon(Object)
+type 配置成 'text'。需要配置文本内容在 content 中
+{{ use: text-icon(  prefix = '##' + ${prefix}) }}
 
 ${prefix} sort(boolean|Function)
 
@@ -107,7 +116,7 @@ ${prefix} showSort(boolean)
 ${prefix} disableHover(bolean)
 该列不支持 hover 交互行为
 
-${prefix} disableSelect(boolean)
+${prefix} disableSelect(boolean | ((col: number, row: number, table: BaseTableAPI) => boolean))
 该列不支持选中
 
 ${prefix} disableHeaderHover(bolean)
@@ -119,8 +128,11 @@ ${prefix} disableHeaderSelect(boolean)
 ${prefix} description(string)
 表头 hover 时的描述信息 会以 tooltip 形式展示出来
 
-${prefix} dropDownMenu(Array)
-下拉菜单项配置。下拉菜单项可以是一级菜单项或者二级菜单项，只要有一个配置即可。具体类型为 MenuListItem[]。
+${prefix} dropDownMenu(MenuListItem[])
+下拉菜单项配置。下拉菜单项可以是一级菜单项或者二级菜单项，只要有一个配置即可。
+
+具体类型为 `MenuListItem[] `。
+
 {{ use: common-menu-list-item() }}
 
 ${prefix} headerCustomRender(Function|Object)
@@ -250,4 +262,9 @@ ${prefix} aggregation(Aggregation | CustomAggregation | Array)
 
 全局 option 也可以配置，对每一列都配置聚合规则。
 
-可参考教程文档
+可参考[教程文档](https://visactor.io/vtable/guide/data_analysis/list_table_dataAnalysis)
+
+${prefix} hide(boolean) = false
+非必填。
+
+是否隐藏列

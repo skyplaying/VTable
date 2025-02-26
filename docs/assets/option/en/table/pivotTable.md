@@ -48,14 +48,11 @@ Currently, it supports incoming flattened data formats, taking the sales of larg
   }
 ]
 ```
-## enableDataAnalysis(boolean)
-Whether the pivot table enables data analysis. Default false.
 
-If the incoming data records are detailed data and VTable is required for aggregate analysis, enable this configuration.
-
-If the incoming data is aggregated, in order to improve performance, it is set to false and columnTree and rowTree are required to be passed in.
 ## dataConfig(IDataConfig)
-Data analysis related configuration This configuration will be effective only after enableDataAnalysis is turned on.
+
+Data analysis related configuration .
+
 ```
 /**
  * Data processing configuration
@@ -74,7 +71,9 @@ export interface IDataConfig {
 ```
 
 ### aggregationRules(AggregationRules)
+
 Find the aggregation method of indicators; the specific definition of AggregationRules is as follows:
+
 ```
 export type AggregationRules = AggregationRule<AggregationType>[];
 
@@ -86,9 +85,13 @@ export interface AggregationRule<T extends AggregationType> {
   aggregationType: T;
   /**Formatting calculation results */
   formatFun?: (num: number) => string;
+  /** when aggregationType set AggregationType.CUSTOM，please set this aggregationFun。*/
+  aggregationFun?: T extends AggregationType.CUSTOM ? (values: any[], records: any[]) => any : undefined;
 }
 ```
+
 Among them, the AggregationType aggregation methods include the following 6 types, the most commonly used one is SUM. The RECORD type is mainly used internally by perspectives.
+
 ```
 export enum AggregationType {
   RECORD = 'RECORD',
@@ -97,66 +100,90 @@ export enum AggregationType {
   MAX = 'MAX',
   AVG = 'AVG',
   COUNT = 'COUNT',
-  NONE = 'NONE'
+  NONE = 'NONE',
+  CUSTOM = 'CUSTOM'
 }
 ```
+
+In addition to the several built-in aggregation methods mentioned above in VTable, it also supports registering and defining aggregation methods. To use custom aggregation types, you need to first define a custom aggregation class, inherit the built-in Aggregator class, register it in VTable, and then implement the aggregation logic in the custom aggregation class. For details, please refer to the [demo](../demo/data-analysis/pivot-analysis-customAggregator)
+
 ### sortRules(SortRules)
+
 Sorting rule configuration, specifically defined as follows:
+
 ```
 export type SortRules = SortRule[];
 export type SortRule = SortTypeRule | SortByRule | SortByIndicatorRule | SortFuncRule;
 ```
+
 The sorting rules support four methods:
-1. SortTypeRule: Sort by field, such as ascending order by year: `{"sortField": "Year", "sortType": "ASC"}`.
+
+1. SortTypeRule: Sorts by field, such as sorting by year in ascending order: `{"sortField": "Year", "sortType": "ASC"}`. ASC DESC sorts in ascending or descending order according to the natural order of pinyin or numbers, and NORMAL sorts according to the order in records.
+
 ```
-//1. Specify the sorting type
+//1. Specify the sort type
 export interface SortTypeRule {
-  /**Sort dimensions */
+  /**Sorting dimension */
   sortField: string;
-  /**Ascending order Descending order ASC or DESC*/
+  /**Ascending or descending order ASC or DESC NORMAL*/
   sortType?: SortType;
 }
 ```
-2. SortByRule: Sort by dimension members specified, such as sorting by region dimension value: `{"sortField": "Region", "sortBy": ["South China", "Central China", "North China", "Central South", "Southwest China" "]}`.
+
+2. SortByRule: Sorts by specifying the order of dimension members, such as sorting by region dimension values: `{"sortField": "Region", "sortBy": ["华南","华中","华北","中南","西南"]}`. ASC DESC sorts in ascending or descending order according to the order specified by sortBy, and NORMAL sorts according to the order in records.
+
 ```
-//2. Sort by dimension member specification
+//2. Sort by specifying the order of dimension members
 export interface SortByRule {
-  /**Sort dimensions */
+  /**Sorting dimension */
   sortField: string;
-  /** Sort according to the specified order */
+  /**Sort by specifying a specific order */
   sortBy?: string[];
+  /**Ascending or descending order ASC or DESC NORMAL*/
+  sortType?: SortType;
 }
 ```
-3. SortByIndicatorRule: Sort according to the indicator value, such as sorting the regional dimension values in descending order according to the sales amount under the category office supplies: `{sortField:'Region',sortByIndicator: "Sales", sortType: "DESC",query:['Office supplies ']}`.
+
+3. SortByIndicatorRule: Sorts by indicator values, such as sorting by the sales amount of the office category in descending order to sort the region dimension values: `{sortField:'Region', sortByIndicator: "Sales", sortType: "DESC", query:['办公用品']}`. ASC DESC sorts in ascending or descending order according to the indicator value specified by sortBy, and NORMAL sorts according to the order in records.
+
 ```
-//3. Sort by indicator value
+//3. Sort by indicator values
 export interface SortByIndicatorRule {
-  /**Sort dimensions */
+  /**Sorting dimension */
   sortField: string;
-  /**Ascending order Descending order ASC or DESC*/
+  /**Ascending or descending order ASC or DESC NORMAL*/
   sortType?: SortType;
-  /** Sort according to a certain indicator value */
+  /**Sort by a specific indicator value */
   sortByIndicator?: string;
-  /**If you sort by indicator value, you also need to specify the specific value of the underlying dimension member in another (row or column) direction. For example, according to the paper under office supplies ['office supplies', 'paper'] */
+  /**If sorting by indicator values, another dimension member value (row or column) needs to be specified. For example, sorting by office supplies ['办公用品', '纸张'] */
   query?: string[];
 }
 ```
-4. SortFuncRule: supports custom sorting rules through functions, such as sorting based on calculated indicator values: `{"sortField": "Region", sortFunc: (a, b) => a.sales - b.sales}`.
+
+4. SortFuncRule: Supports custom sorting rules through functions, such as sorting by calculated indicator values: `{"sortField": "Region", sortFunc: (a, b) => a.sales - b.sales}`. ASC DESC NORMAL all follow the sorting logic in sortFunc.
+
 ```
-//4. Custom sorting method function
+//4. Custom sorting function
 export interface SortFuncRule {
-  /**Sort dimensions */
+  /**Sorting dimension */
   sortField: string;
   /**Custom sorting function */
   sortFunc?: (a: any, b: any) => number;
+  /**Ascending or descending order ASC or DESC NORMAL*/
+  sortType?: SortType;
 }
 ```
+
 ### filterRules(FilterRules)
+
 Data filtering rules, specific type definition:
+
 ```
 export type FilterRules = FilterRule[];
 ```
+
 Multiple filtering rules can be set, and data will be retained only if each filtering rule is met.
+
 ```
 //#region filter rules
 export interface FilterRule {
@@ -165,8 +192,11 @@ export interface FilterRule {
   filterFunc?: (row: Record<string, any>) => boolean;
 }
 ```
+
 ### totals(Totals)
+
 Set up totals, subtotals, and grand totals.
+
 ```
 export interface Totals {
   row?: Total & {
@@ -181,6 +211,7 @@ export interface Totals {
 ```
 
 Row or column methods set summary rules respectively:
+
 ```
 export interface Total {
   // Whether to display the total
@@ -195,21 +226,47 @@ export interface Total {
   subTotalLabel?: string;
 }
 ```
+
 ### derivedFieldRules(DerivedFieldRules)
-Add derived fields
+
+Add a derived field. The vtable will generate a new field based on the rules defined by the derived field and add the new field to the data. The new field can be used as a dimension item or an indicator item.
+
 ```
 export type DerivedFieldRules = DerivedFieldRule[];
 ```
+
 The specific function is to generate new fields for source data, which is customized by the user. This function mainly adds a new field to each piece of data. This field can be used in other data rules, such as sort or as indicators or columns. of a certain dimension.
+
 ```
 export interface DerivedFieldRule {
   fieldName?: string;
   derivedFunc?: (record: Record<string, any>) => any;
 }
 ```
+
+### calculatedFieldRules (CalculatedFieldRules)
+
+Calculated fields are similar to the calculated fields in Excel pivot tables. New indicator values can be calculated through calculated fields, and they are all recalculated based on the summary results. Note: Different from derived fields.
+
+```
+export type CalculateddFieldRules = CalculateddFieldRule[];
+```
+
+```
+export interface CalculatedFieldRule {
+  /** Unique identifier, which can be used as the key of a new indicator and used to configure indicators to be displayed in a pivot table. */
+  key: string;
+  /** The indicator that the calculated field depends on, which can be the corresponding indicator field in records or not the field in data records
+  * If the dependent indicator is not in records, it needs to be explicitly configured in aggregationRules, specifying the aggregation rule and indicatorKey to be used in dependIndicatorKeys. */
+  dependIndicatorKeys: string[];
+  /** The calculation function of the calculated field. The dependent indicator value is passed in as a parameter, and the return value is used as the value of the calculated field. */
+  calculateFun?: (dependFieldsValue: any) => any;
+}
+```
+
 ## columnTree(Array)
 
-Column header tree, type: `IDimensionHeaderNode|IIndicatorHeaderNode[]`. Among them, IDimensionHeaderNode refers to the dimension value node of non-indicator dimensions, and IIndicatorHeaderNode refers to the indicator name node.
+Column header tree, type: `(IDimensionHeaderNode|IIndicatorHeaderNode)[]`. Among them, IDimensionHeaderNode refers to the dimension value node of non-indicator dimensions, and IIndicatorHeaderNode refers to the indicator name node.
 
 ** Specific configuration of IDimensionHeaderNode is as follows: **
 
@@ -221,10 +278,14 @@ export interface IDimensionHeaderNode {
   dimensionKey: string | number;
   /** Dimension member value */
   value: string;
-  /** The tree structure of the sub-dimensions under the member */
-  children?: IDimensionHeaderNode|IIndicatorHeaderNode[];
+  /** The tree structure of the sub-dimensions under the member. true is generally used to display the fold and expand buttons and to perform lazy loading to obtain data.  */
+  children?: (IDimensionHeaderNode|IIndicatorHeaderNode)[] | true;
   /** Collapse status Used with tree structure display. Note: only valid in rowTree */
   hierarchyState?: HierarchyState;
+  /** Whether it is a virtual node. If configured to true, this dimension field will be ignored when analyzing based on records data */
+  virtual?: boolean;
+  /** Merge display of this dimension value across cells, default is 1. If the maximum number of header levels is 5, then the last level will merge as many cells as there are levels left. */
+  levelSpan?: number;
 }
 ```
 
@@ -240,6 +301,10 @@ export interface IIndicatorHeaderNode {
    * Indicator name, such as: "Sales Amount", "example", corresponding to the value displayed in the cell. Optional, if not filled in, the value will be taken from the corresponding configuration in indicators
    */
   value?: string;
+  /** Merge display of this dimension value across cells, default is 1. If the maximum number of header levels is 5, then the last level will merge as many cells as there are levels left. */
+  levelSpan?: number;
+  /** Whether to hide this indicator node */
+  hide?: boolean;
 }
 ```
 
@@ -257,11 +322,11 @@ Row header tree, with a structure similar to columnTree.
 
 The indicator is displayed on the column, default is true. If configured to false, it will be displayed in rows and the indicator will be displayed in rows.
 
-## rowHierarchyType('grid' | 'tree')
+## rowHierarchyType('grid' | 'tree' | 'grid-tree')
 
 Hierarchy display style for dimensional structure, flat or tree.
 
-[Flat Example](../demo/table-type/pivot-table) [Tree Example](../demo/table-type/pivot-table-tree)
+[Flat Example](../demo/table-type/pivot-table) [Tree Example](../demo/table-type/pivot-analysis-table-tree) [Grid Tree Example](../demo/table-type/pivot-analysis-table-grid-tree)
 
 {{ use: extension-rows-dimension-define( prefix = '#',) }}
 
@@ -272,6 +337,18 @@ Initial expansion level. In addition to configuring the expansion level of the u
 ## rowHierarchyIndent(number)
 
 If tree display is set, the indentation distance of content displayed in the child cell compared to its parent cell content.
+
+## rowHierarchyTextStartAlignment(boolean) = false
+
+Whether nodes at the same level are aligned by text, such as nodes without collapsed expansion icons and nodes with icons. Default is false
+
+## columnHierarchyType('grid' |'grid-tree')
+
+Hierarchical dimension structure display style in column headers, flat or tree structure.
+
+## columnExpandLevel(number)
+
+Initial expansion level for column headers, default is 1.
 
 ## indicatorTitle(string)
 
@@ -306,15 +383,6 @@ Add a row in the column header to display the dimension name, which can be custo
 
 {{ use: pivot-header-title( prefix = '###',) }}
 
-## columnResizeType(string)
-
-The range of effects when adjusting column width, configurable options:
-
-- `column`: Adjusting the column width only adjusts the current column
-- `indicator`: When adjusting the column width, the corresponding columns of the same indicator will be adjusted
-- `indicatorGroup`: Adjust the width of all indicator columns under the same parent dimension
-- `all`: All column widths are adjusted
-
 ## pivotSortState(Array)
 
 Set the sorting state, only corresponding to the display effect of the button without data sorting logic
@@ -337,16 +405,30 @@ Set the sorting state, only corresponding to the display effect of the button wi
     tableType = 'pivotTable'
 ) }}
 
-## editor (string|Object|Function)
+## supplementIndicatorNodes(boolean) = true
 
-Global configuration cell editor
-```
-editor?: string | IEditor | ((args: BaseCellInfo & { table: BaseTableAPI }) => string | IEditor);
-```
-Among them, IEditor is the editor interface defined in @visactor/vtable-editors. For details, please refer to the source code: https://github.com/VisActor/VTable/blob/main/packages/vtable-editors/src/types.ts .
+Whether to add index nodes to the corresponding custom table headers such as rowTree or columnTree. Default is true
 
-{{ use: common-option-secondary(
-    prefix = '#',
-    tableType = 'listTable'
-) }}
+## parseCustomTreeToMatchRecords(boolean) = true
+
+If you have configured rowTree or columnTree and it is a non-regular tree structure, you need to turn on this configuration to match the corresponding data record.
+
+The regular tree structure refers to: the nodes on the same layer have the same dimension keys.
+
+The non-regular tree structure is the tree where nodes on the same layer exist with different dimension values.
+
+## columnWidthConfig(Array)
+
+Set column width based on dimension information
+
 ```
+{
+  dimensions: IDimensionInfo[];
+  width: number;
+}[];
+```
+
+- dimensions The dimension information of each level of the dimension is an array of IDimensionInfo type. The vtable will locate the specific column according to this path.
+  {{ use: common-IDimensionInfo()}}
+
+-width specifies the column width.

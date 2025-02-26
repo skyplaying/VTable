@@ -5,17 +5,20 @@ import {
   DefaultTextMeasureContribution,
   TextMeasureContribution,
   ContainerModule,
-  container
+  container,
+  Text
 } from '@src/vrender';
+import { MeasureModeEnum } from '@src/vrender';
 // eslint-disable-next-line max-len
 // import {
 //   DefaultTextMeasureContribution,
 //   TextMeasureContribution
 // } from '@visactor/vrender/es/core/contributions/textMeasure/textMeasure-contribution';
 import type { ITextMeasureOption, ITextSize } from '@visactor/vutils';
-import { TextMeasure } from '@visactor/vutils';
+import { isValid, TextMeasure } from '@visactor/vutils';
 
 let customAlphabetCharSet = '';
+let textMeasureMode: 'quick' | 'canvas' = 'quick';
 
 type ITextGraphicAttributeFroMeasure = Omit<ITextGraphicAttribute, 'lineHeight'> & {
   lineHeight?: number;
@@ -51,7 +54,7 @@ export const initTextMeasure = (
         fontSize: DefaultTextStyle.fontSize
       },
       getTextBounds: useNaiveCanvas ? undefined : getTextBounds,
-      specialCharSet: `{}()//&-/: .,@%'"~…=${
+      specialCharSet: `{}()//&-/: .,@%'"~…=——${
         TextMeasure.ALPHABET_CHAR_SET
       }${TextMeasure.ALPHABET_CHAR_SET.toUpperCase()}0123456789${customAlphabetCharSet}`,
       ...(option ?? {})
@@ -85,6 +88,18 @@ function getFastTextMeasure(
 }
 
 export class FastTextMeasureContribution extends DefaultTextMeasureContribution {
+  _fastMeasure(text: string, options: TextOptionsType) {
+    const { fontSize, fontFamily = 'Arial,sans-serif', fontWeight = 'normal', fontStyle = 'normal' } = options;
+    const fastTextMeasure = getFastTextMeasure(fontSize, fontWeight, fontFamily, fontStyle);
+    const textMeasure = fastTextMeasure.measure(text, textMeasureMode);
+
+    if (!isValid(textMeasure.fontBoundingBoxAscent) && !isValid(textMeasure.fontBoundingBoxDescent)) {
+      const { ascent, descent } = this.measureTextBoundADscentEstimate(options);
+      textMeasure.fontBoundingBoxAscent = ascent;
+      textMeasure.fontBoundingBoxDescent = descent;
+    }
+    return textMeasure;
+  }
   /**
    * 获取text宽度，measureText.width
    * @param text
@@ -98,10 +113,7 @@ export class FastTextMeasureContribution extends DefaultTextMeasureContribution 
     // const textMeasure = this.context.measureText(text);
     // return textMeasure.width;
 
-    const { fontSize, fontFamily = 'Arial,sans-serif', fontWeight = 'normal', fontStyle = 'normal' } = options;
-    const fastTextMeasure = getFastTextMeasure(fontSize, fontWeight, fontFamily, fontStyle);
-    const textMeasure = fastTextMeasure.measure(text);
-    return textMeasure.width;
+    return this._fastMeasure(text, options).width;
   }
 
   /**
@@ -116,10 +128,19 @@ export class FastTextMeasureContribution extends DefaultTextMeasureContribution 
     // this.context.setTextStyleWithoutAlignBaseline(options);
     // return this.context.measureText(text);
 
-    const { fontSize, fontFamily = 'Arial,sans-serif', fontWeight = 'normal', fontStyle = 'normal' } = options;
-    const fastTextMeasure = getFastTextMeasure(fontSize, fontWeight, fontFamily, fontStyle);
-    const textMeasure = fastTextMeasure.measure(text);
-    return textMeasure;
+    return this._fastMeasure(text, options);
+  }
+
+  protected _measureTextWithoutAlignBaseline(
+    text: string,
+    options: TextOptionsType,
+    compatible?: boolean
+  ): { width: number } | TextMetrics {
+    return this._fastMeasure(text, options);
+  }
+
+  protected _measureTextWithAlignBaseline(text: string, options: TextOptionsType, compatible?: boolean) {
+    return this._fastMeasure(text, options);
   }
 }
 
@@ -132,7 +153,7 @@ export class TextMeasureTool {
   measureText(text: string, options: ITextGraphicAttribute): ITextSize {
     const { fontSize, fontFamily = 'Arial,sans-serif', fontWeight = 'normal', fontStyle = 'normal' } = options;
     const fastTextMeasure = getFastTextMeasure(fontSize, fontWeight, fontFamily, fontStyle);
-    const textMeasure = fastTextMeasure.measure(text);
+    const textMeasure = fastTextMeasure.measure(text, textMeasureMode);
     return textMeasure;
   }
 
@@ -144,7 +165,7 @@ export class TextMeasureTool {
   measureTextWidth(text: string, options: ITextGraphicAttribute): number {
     const { fontSize, fontFamily = 'Arial,sans-serif', fontWeight = 'normal', fontStyle = 'normal' } = options;
     const fastTextMeasure = getFastTextMeasure(fontSize, fontWeight, fontFamily, fontStyle);
-    const textMeasure = fastTextMeasure.measure(text);
+    const textMeasure = fastTextMeasure.measure(text, textMeasureMode);
     return textMeasure.width;
   }
 
@@ -263,5 +284,19 @@ export function setCustomAlphabetCharSet(str: string) {
 
 // change fast textMeasure into canvas textMeasure
 export function restoreMeasureText() {
+  textMeasureMode = 'canvas';
   container.load(restoreTextMeasureModule);
+}
+
+const utilTextMark = new Text({
+  ignoreBuf: true
+  // autoWrapText: true
+});
+
+export function measureTextBounds(attribute: ITextGraphicAttribute) {
+  utilTextMark.initAttributes({
+    ...attribute,
+    ignoreBuf: true
+  });
+  return utilTextMark.AABBBounds;
 }

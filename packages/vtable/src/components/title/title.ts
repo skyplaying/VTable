@@ -1,10 +1,14 @@
-import { Title as TitleComponents } from '@visactor/vrender-components';
+import { Title as TitleComponents } from '@src/vrender';
 // eslint-disable-next-line no-duplicate-imports
-import type { TitleAttrs } from '@visactor/vrender-components';
+import type { TitleAttrs } from '@src/vrender';
 import type { ITitle } from '../../ts-types/component/title';
 import { getQuadProps } from '../../scenegraph/utils/padding';
 import type { BaseTableAPI } from '../../ts-types/base-table';
-import { isEqual } from '@visactor/vutils';
+import { isEqual, merge } from '@visactor/vutils';
+
+export interface ITitleComponent {
+  new (titleOption: ITitle, table: BaseTableAPI): Title;
+}
 export class Title {
   table: BaseTableAPI;
   _titleOption: ITitle;
@@ -13,7 +17,7 @@ export class Title {
   private _cacheAttrs: TitleAttrs;
   constructor(titleOption: ITitle, table: BaseTableAPI) {
     this.table = table;
-    this._titleOption = titleOption;
+    this._titleOption = merge({ orient: 'top' }, titleOption);
     if (titleOption.visible !== false) {
       this._titleComponent = this._createOrUpdateTitleComponent(this._getTitleAttrs());
     }
@@ -44,10 +48,18 @@ export class Title {
     const padding = getQuadProps(this._titleOption.padding ?? 10);
     const realWidth =
       this._titleOption.width ??
-      Math.min(this.table.tableNoFrameWidth, this.table.getDrawRange().width) - padding[1] - padding[3];
+      (this.table.widthMode === 'adaptive'
+        ? this.table.tableNoFrameWidth
+        : Math.min(this.table.tableNoFrameWidth, this.table.getDrawRange().width)) -
+        padding[1] -
+        padding[3];
     const realHeight =
       this._titleOption.height ??
-      Math.min(this.table.tableNoFrameHeight, this.table.getDrawRange().height) - padding[0] - padding[2];
+      (this.table.heightMode === 'adaptive'
+        ? this.table.tableNoFrameHeight
+        : Math.min(this.table.tableNoFrameHeight, this.table.getDrawRange().height)) -
+        padding[0] -
+        padding[2];
     this._titleComponent.setAttributes({
       x:
         this._titleOption.x ?? this._titleOption.orient === 'right'
@@ -178,7 +190,13 @@ export class Title {
       subtextStyle: {
         width: realWidth,
         ...this._titleOption.subtextStyle
-      }
+      },
+      dx: this._titleOption.dx ?? 0,
+      dy: this._titleOption.dy ?? 0
     } as TitleAttrs;
+  }
+
+  getComponentGraphic() {
+    return this._titleComponent;
   }
 }

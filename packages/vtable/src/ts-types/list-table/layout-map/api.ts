@@ -19,9 +19,14 @@ import type {
   CustomRenderFunctionArg,
   SparklineSpec,
   HierarchyState,
-  Aggregation
+  Aggregation,
+  IRowSeriesNumber,
+  SortOption,
+  FieldGetter,
+  BaseCellInfo
 } from '../../';
-import type { Aggregator } from '../../../dataset/statistics-helper';
+import type { Aggregator } from '../../dataset/aggregation';
+import type { BaseTableAPI } from '../../base-table';
 
 import type { HeaderDefine, ColumnDefine, ColumnBodyDefine } from '../define';
 
@@ -51,7 +56,7 @@ export interface HeaderData extends WidthData {
     | string
     | ColumnIconOption
     | (string | ColumnIconOption)[]
-    | ((args: CellInfo) => string | ColumnIconOption | (string | ColumnIconOption)[]);
+    | ((args: CellInfo) => undefined | string | ColumnIconOption | (string | ColumnIconOption)[]);
   icons?: (string | ColumnIconOption)[] | ((args: CellInfo) => (string | ColumnIconOption)[]);
 
   field: FieldDef;
@@ -63,7 +68,7 @@ export interface HeaderData extends WidthData {
   // freezeIconPosition?: RectProps;
   /**存储图标的位置 坐标及宽高 是包括了boxWidth boxWidth 共getHitIcon方法使用 计算是否命中图标*/
   // iconPositionList?: { [key in IconFuncTypeEnum]?: RectProps & { icon: ColumnIconOption } };
-  dropDownMenu?: MenuListItem[];
+  dropDownMenu?: MenuListItem[] | ((args: { row: number; col: number; table: BaseTableAPI }) => MenuListItem[]);
   pivotInfo?: PivotInfo;
   /**
    * 维度层级level 从0开始：第0层 第1层
@@ -79,7 +84,8 @@ export interface HeaderData extends WidthData {
   hierarchyState?: HierarchyState;
   columnWidthComputeMode?: 'normal' | 'only-header' | 'only-body';
 
-  showSort?: boolean;
+  showSort?: boolean | ((args: { row: number; col: number; table: BaseTableAPI }) => boolean);
+  sort?: SortOption;
 
   /**
    * 表头描述 鼠标hover会提示该信息
@@ -112,9 +118,9 @@ export interface ColumnData extends WidthData {
     | string
     | ColumnIconOption
     | (string | ColumnIconOption)[]
-    | ((args: CellInfo) => string | ColumnIconOption | (string | ColumnIconOption)[]);
+    | ((args: CellInfo) => undefined | string | ColumnIconOption | (string | ColumnIconOption)[]);
 
-  cellType: 'text' | 'link' | 'image' | 'video' | 'sparkline' | 'progressbar' | 'chart' | 'checkbox'; //BaseColumn<T, any>;
+  cellType: 'text' | 'link' | 'image' | 'video' | 'sparkline' | 'progressbar' | 'chart' | 'checkbox' | 'radio';
   /** 如果是绘制图表库组件的图表类型 需要将注入的组件名称 写到chartType */
   chartModule?: string;
   /** 如果是绘制图表库组件的图表类型 统一图表配置chartSpec */
@@ -123,7 +129,7 @@ export interface ColumnData extends WidthData {
   sparklineSpec?: SparklineSpec | ((arg0: CellInfo) => SparklineSpec);
   style: ColumnStyleOption | null | undefined;
   define: ColumnDefine;
-  templateLink?: string;
+  templateLink?: string | FieldGetter;
   columnWidthComputeMode?: 'normal' | 'only-header' | 'only-body';
   /**存储图标的位置 坐标及宽高 是包括了boxWidth boxWidth 共getHitIcon方法使用 计算是否命中图标*/
   // iconPositionList?: { [key in IconFuncTypeEnum]?: RectProps & { icon: ColumnIconOption } };
@@ -133,6 +139,8 @@ export interface ColumnData extends WidthData {
   disableColumnResize?: boolean;
   aggregation?: Aggregation | Aggregation[];
   aggregator?: Aggregator | Aggregator[];
+  /** 是否为子节点 即上层还有父节点 */
+  isChildNode?: boolean;
 }
 
 export interface IndicatorData extends WidthData {
@@ -148,6 +156,7 @@ export interface IndicatorData extends WidthData {
   chartModule?: string;
   chartSpec?: any | ((arg0: CustomRenderFunctionArg) => any);
   chartInstance?: any;
+  noDataRenderNothing?: boolean;
   style?: ColumnStyleOption | null | undefined;
   define: ColumnDefine;
   // headerIcon?:
@@ -157,7 +166,7 @@ export interface IndicatorData extends WidthData {
     | string
     | ColumnIconOption
     | (string | ColumnIconOption)[]
-    | ((args: CellInfo) => string | ColumnIconOption | (string | ColumnIconOption)[]);
+    | ((args: CellInfo) => undefined | string | ColumnIconOption | (string | ColumnIconOption)[]);
   sparklineSpec?: SparklineSpec | ((arg0: CustomRenderFunctionArg) => SparklineSpec);
   /**
    * 是否禁用调整列宽,如果是转置表格或者是透视表的指标是行方向指定 那该配置不生效
@@ -165,6 +174,28 @@ export interface IndicatorData extends WidthData {
   disableColumnResize?: boolean;
 }
 
+/**
+ * 序号列定义
+ */
+export interface SeriesNumberColumnData extends WidthData {
+  id: LayoutObjectId;
+  title?: string | (() => string);
+  field?: FieldDef;
+  // fieldKey?: FieldKeyDef;
+  format?: (col?: number, row?: number, table?: BaseTableAPI, originValue?: string | number) => any;
+  // icon?: ColumnIconOption | ColumnIconOption[];
+  icon?:
+    | string
+    | ColumnIconOption
+    | (string | ColumnIconOption)[]
+    | ((args: CellInfo) => undefined | string | ColumnIconOption | (string | ColumnIconOption)[]);
+  headerIcon?: string | ColumnIconOption | (string | ColumnIconOption)[];
+  cellType: 'text' | 'link' | 'image' | 'video' | 'checkbox';
+  headerType: 'text' | 'link' | 'image' | 'video' | 'checkbox';
+  style: ColumnStyleOption | null | undefined;
+  define: IRowSeriesNumber;
+  isChildNode?: false;
+}
 // Simple header
 
 // export interface GroupHeaderDefine extends HeaderDefine {
@@ -224,12 +255,12 @@ interface LayoutMapAPI {
   isHeader: (col: number, row: number) => boolean;
   // isHeaderNode(col: number, row: number): boolean; //是否为叶子表头
   /**获取单元格header对象 包括field style type 等 */
-  getHeader: (col: number, row: number) => HeaderData;
+  getHeader: (col: number, row: number) => HeaderData | SeriesNumberColumnData;
   /**获取对应header的field  */
   getHeaderField: (col: number, row: number) => FieldDef;
   // getHeaderFieldKey(col: number, row: number): FieldKeyDef;
   /**获取单元格column对象 包括field style type 等 */
-  getBody: (col: number, row: number) => ColumnData | IndicatorData;
+  getBody: (col: number, row: number) => ColumnData | IndicatorData | SeriesNumberColumnData;
   /**获取单元格标识key */
   getCellId: (col: number, row: number) => LayoutObjectId;
   getCellRange: (col: number, row: number) => CellRange;

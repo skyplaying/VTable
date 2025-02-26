@@ -1,7 +1,7 @@
 import { cloneDeep, get, merge } from '@visactor/vutils';
 import type { IDiscreteTableLegendOption } from '../../../ts-types/component/legend';
 import type { BaseTableAPI } from '../../../ts-types/base-table';
-import { DiscreteLegend, LegendEvent } from '@visactor/vrender-components';
+import { DiscreteLegend, LegendEvent } from '@src/vrender';
 import { getLegendAttributes } from './get-discrete-legend-attributes';
 import { TABLE_EVENT_TYPE } from '../../../core/TABLE_EVENT_TYPE';
 import { getQuadProps } from '../../../scenegraph/utils/padding';
@@ -22,7 +22,7 @@ export class DiscreteTableLegend {
     this.orient = option.orient ?? 'left';
     this.visible = option.visible ?? true;
     this.position = option.position ?? 'middle';
-    this.selectedData = option.defaultSelected ?? [];
+    this.selectedData = option.defaultSelected ?? null;
 
     this.createComponent();
     this.initEvent();
@@ -35,30 +35,41 @@ export class DiscreteTableLegend {
     });
     const legend = new DiscreteLegend(
       merge({}, attrs, {
-        defaultSelected: this.selectedData
+        defaultSelected: this.selectedData,
+        disableTriggerEvent: this.table.options.disableInteraction
       })
     );
     legend.name = 'legend';
     this.legendComponent = legend;
+    if (this.visible === false) {
+      legend.setAttributes({
+        visible: false,
+        visibleAll: false
+      });
+      legend.hideAll();
+    }
     this.table.scenegraph.stage.defaultLayer.appendChild(legend);
 
     this.adjustTableSize(attrs);
   }
 
   resize() {
-    if (!this.legendComponent) {
+    if (!this.legendComponent || this.visible === false) {
       return;
     }
 
     this.legendComponent.setAttributes({
-      width: this.table.tableNoFrameWidth,
-      height: this.table.tableNoFrameHeight
+      maxWidth: this.table.tableNoFrameWidth,
+      maxHeight: this.table.tableNoFrameHeight
     });
 
     this.adjustTableSize(this.legendComponent.attribute);
   }
 
   adjustTableSize(attrs: any) {
+    if (!this.legendComponent || this.visible === false) {
+      return;
+    }
     // 调整位置
     let width = isFinite(this.legendComponent.AABBBounds.width()) ? this.legendComponent.AABBBounds.width() : 0;
     let height = isFinite(this.legendComponent.AABBBounds.height()) ? this.legendComponent.AABBBounds.height() : 0;
@@ -135,13 +146,15 @@ export class DiscreteTableLegend {
 
   getLegendAttributes(rect: any) {
     const layout = this.orient === 'bottom' || this.orient === 'top' ? 'horizontal' : 'vertical';
+    const legendAttrs = getLegendAttributes(this.option, rect);
+    const padding = getQuadProps(legendAttrs.padding ?? this.option.padding ?? 10);
     const attrs = {
       layout,
       items: this.getLegendItems(),
       // zIndex: this.layoutZIndex,
-      maxWidth: rect.width,
-      maxHeight: rect.height,
-      ...getLegendAttributes(this.option, rect)
+      maxWidth: rect.width - padding[1] - padding[3],
+      maxHeight: rect.height - padding[0] - padding[2],
+      ...legendAttrs
     };
     return attrs;
   }

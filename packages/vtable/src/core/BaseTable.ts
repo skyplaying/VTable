@@ -35,16 +35,25 @@ import {
   type LayoutObjectId,
   type HeightModeDef,
   type ITableThemeDefine,
-  InteractionState
+  InteractionState,
+  Placement
 } from '../ts-types';
 import type {
   AnyFunction,
   CellAddressWithBound,
   ColorPropertyDefine,
   ColumnIconOption,
+  ColumnSeriesNumber,
+  IRowSeriesNumber,
   ColumnStyleOption,
   MappingRule,
-  TableEventOptions
+  TableEventOptions,
+  WidthAdaptiveModeDef,
+  HeightAdaptiveModeDef,
+  ListTableAPI,
+  ColumnInfo,
+  RowInfo,
+  ListTableConstructorOptions
 } from '../ts-types';
 import { event, style as utilStyle } from '../tools/helper';
 
@@ -63,33 +72,43 @@ import { EventManager } from '../event/event';
 import { BodyHelper } from '../body-helper/body-helper';
 import { HeaderHelper } from '../header-helper/header-helper';
 import type { PivotHeaderLayoutMap } from '../layout/pivot-header-layout';
-import { TooltipHandler } from '../components/tooltip/TooltipHandler';
+import type { ITooltipHandler } from '../components/tooltip/TooltipHandler';
 import type { CachedDataSource, DataSource } from '../data';
-import { AABBBounds, isNumber, isBoolean, isFunction, type ITextSize, isValid, merge } from '@visactor/vutils';
-import { textMeasure } from '../scenegraph/utils/text-measure';
+import type { IBoundsLike } from '@visactor/vutils';
+import {
+  AABBBounds,
+  isNumber,
+  isBoolean,
+  isFunction,
+  type ITextSize,
+  isValid,
+  merge,
+  cloneDeep
+} from '@visactor/vutils';
+import { measureTextBounds, textMeasure } from '../scenegraph/utils/text-measure';
 import { getProp } from '../scenegraph/utils/get-prop';
 import type {
   ColumnData,
   ColumnDefine,
   ColumnsDefine,
   ImageColumnDefine,
-  IndicatorData
+  IndicatorData,
+  SeriesNumberColumnData
 } from '../ts-types/list-table/layout-map/api';
 import type { TooltipOptions } from '../ts-types/tooltip';
 import { IconCache } from '../plugins/icons';
 import {
   _applyColWidthLimits,
   _getScrollableVisibleRect,
-  _getTargetFrozenColAt,
-  _getTargetFrozenRowAt,
   _setDataSource,
   _setRecords,
   _toPxWidth,
+  checkHasColumnAutoWidth,
   createRootElement,
   getStyleTheme,
   updateRootElementPadding
 } from './tableHelper';
-import { MenuHandler } from '../components/menu/dom/MenuHandler';
+import type { IMenuHandler } from '../components/menu/dom/MenuHandler';
 import type {
   BaseTableAPI,
   BaseTableConstructorOptions,
@@ -98,26 +117,54 @@ import type {
 } from '../ts-types/base-table';
 import { FocusInput } from './FouseInput';
 import { defaultPixelRatio } from '../tools/pixel-ratio';
-import { createLegend } from '../components/legend/create-legend';
-import { DataSet } from '@visactor/vdataset';
+import type { CreateLegend } from '../components/legend/create-legend';
+import type { DataSet } from '@visactor/vdataset';
 import { Title } from '../components/title/title';
 import type { Chart } from '../scenegraph/graphic/chart';
 import { setBatchRenderChartCount } from '../scenegraph/graphic/contributions/chart-render-helper';
 import { isLeftOrRightAxis, isTopOrBottomAxis } from '../layout/chart-helper/get-axis-config';
 import { NumberRangeMap } from '../layout/row-height-map';
-import { CustomCellStylePlugin, mergeStyle } from '../plugins/custom-cell-style';
+import { ListTable } from '../ListTable';
+import type { SimpleHeaderLayoutMap } from '../layout';
+import { RowSeriesNumberHelper } from './row-series-number-helper';
 import { hideCellSelectBorder, restoreCellSelectBorder } from '../scenegraph/select/update-select-border';
+import type { ITextGraphicAttribute } from '@src/vrender';
+import { ReactCustomLayout } from '../components/react/react-custom-layout';
+import type { ISortedMapItem } from '../data/DataSource';
+import { hasAutoImageColumn } from '../layout/layout-helper';
+import { Factory } from './factory';
+import {
+  getCellAt,
+  getCellAtRelativePosition,
+  getColAt,
+  getRowAt,
+  getTargetColAt,
+  getTargetColAtConsiderRightFrozen,
+  getTargetRowAt,
+  getTargetRowAtConsiderBottomFrozen
+} from './utils/get-cell-position';
+import { getCellStyle } from './style-helper';
+import type { EditManager } from '../edit/edit-manager';
+import { createReactContainer } from '../scenegraph/layout/frozen-react';
+import { setIconColor } from '../icons';
+import { TableAnimationManager } from './animation';
+import type { ITableAnimationOption } from '../ts-types/animation/appear';
+import { checkCellInSelect } from '../state/common/check-in-select';
+import type { CustomCellStylePlugin, ICustomCellStylePlugin } from '../plugins/custom-cell-style';
+import { isCellDisableSelect } from '../state/select/is-cell-select-highlight';
+import { getCustomMergeCellFunc } from './utils/get-custom-merge-cell-func';
+import { vglobal } from '@src/vrender';
+
 const { toBoxArray } = utilStyle;
 const { isTouchEvent } = event;
 const rangeReg = /^\$(\d+)\$(\d+)$/;
 importStyle();
 
-const EMPTY_STYLE = {};
 export abstract class BaseTable extends EventTarget implements BaseTableAPI {
   internalProps: IBaseTableProtected;
   showFrozenIcon = true;
   padding: { top: number; left: number; right: number; bottom: number };
-  globalDropDownMenu?: MenuListItem[];
+  globalDropDownMenu?: MenuListItem[] | ((args: { row: number; col: number; table: BaseTableAPI }) => MenuListItem[]);
   //画布绘制单元格的区域 不包括整体边框frame，所以比canvas的width和height要小一点（canvas的width包括了frame）
   tableNoFrameWidth: number;
   tableNoFrameHeight: number;
@@ -127,20 +174,25 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
   _heightMode: HeightModeDef;
   _autoFillWidth: boolean;
   _autoFillHeight: boolean;
+  _widthAdaptiveMode: WidthAdaptiveModeDef;
+  _heightAdaptiveMode: HeightAdaptiveModeDef;
   customRender?: ICustomRender;
 
   canvasWidth?: number;
   canvasHeight?: number;
 
-  _vDataSet: DataSet;
+  _vDataSet?: DataSet;
   scenegraph: Scenegraph;
   stateManager: StateManager;
   eventManager: EventManager;
+  editorManager: EditManager;
+  animationManager: TableAnimationManager;
   _pixelRatio: number;
 
   // bottomFrozenRowCount: number = 0;
   // rightFrozenColCount: number = 0;
-
+  /** 是否设置了canvas的宽高 */
+  canvasSizeSeted?: boolean;
   static get EVENT_TYPE(): typeof TABLE_EVENT_TYPE {
     return TABLE_EVENT_TYPE;
   }
@@ -162,25 +214,38 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
   // eslint-disable-next-line default-param-last
   id = `VTable${Date.now()}`;
 
-  headerStyleCache: any;
-  bodyStyleCache: any;
-  bodyBottomStyleCache: any;
+  headerStyleCache: Map<string, any>;
+  bodyStyleCache: Map<string, any>;
+  bodyMergeTitleCache: Map<string, any>;
+  bodyBottomStyleCache: Map<string, any>;
   container: HTMLElement;
   isReleased: boolean = false;
   _chartEventMap: Record<string, { query?: any; callback: AnyFunction }[]> = {};
 
-  customCellStylePlugin: CustomCellStylePlugin;
+  customCellStylePlugin?: CustomCellStylePlugin;
+
+  columnWidthComputeMode?: 'normal' | 'only-header' | 'only-body';
+
+  reactCustomLayout?: ReactCustomLayout;
+  _hasAutoImageColumn?: boolean;
 
   constructor(container: HTMLElement, options: BaseTableConstructorOptions = {}) {
     super();
-    if (!container && options.mode !== 'node') {
+    if (!container && options.mode !== 'node' && !options.canvas) {
       throw new Error("vtable's container is undefined");
     }
+
+    // for image anonymous
+    if (options.customConfig?.imageAnonymous === false) {
+      vglobal.isImageAnonymous = false;
+    }
+
     const {
       // rowCount = 0,
       // colCount = 0,
       frozenColCount = 0,
-      // frozenRowCount = 0,
+      unfreezeAllOnExceedsMaxWidth,
+      frozenRowCount,
       defaultRowHeight = 40,
       defaultHeaderRowHeight,
       defaultColWidth = 80,
@@ -189,10 +254,16 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
       heightMode = 'standard',
       autoFillWidth = false,
       autoFillHeight = false,
+      widthAdaptiveMode = 'only-body',
+      heightAdaptiveMode = 'only-body',
       keyboardOptions,
       eventOptions,
+      rowSeriesNumber,
+      // columnSeriesNumber,
       // disableRowHeaderColumnResize,
       columnResizeMode,
+      rowResizeMode = 'none',
+      resize,
       dragHeaderMode,
       // showHeader,
       // scrollBar,
@@ -212,13 +283,16 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
       canvasWidth,
       canvasHeight,
       overscrollBehavior,
-      limitMinWidth
+      limitMinWidth,
+      limitMinHeight,
+      clearDOM = true
     } = options;
     this.container = container;
     this.options = options;
-    this.options.container = container;
     this._widthMode = widthMode;
     this._heightMode = heightMode;
+    this._widthAdaptiveMode = widthAdaptiveMode;
+    this._heightAdaptiveMode = heightAdaptiveMode;
     this._autoFillWidth = autoFillWidth;
     this._autoFillHeight = autoFillHeight;
     this.customRender = customRender;
@@ -236,11 +310,15 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
         padding.right && (this.padding.right = padding.right);
       }
     }
-
+    if (isValid(canvasHeight) && isValid(canvasWidth)) {
+      this.canvasSizeSeted = true;
+    }
     this.tableNoFrameWidth = 0;
     this.tableNoFrameHeight = 0;
-    this.canvasWidth = canvasWidth;
-    this.canvasHeight = canvasHeight;
+    this.canvasWidth = isNumber(canvasWidth) ? canvasWidth : undefined;
+    this.canvasHeight = isNumber(canvasHeight) ? canvasHeight : undefined;
+
+    this.columnWidthComputeMode = options.columnWidthComputeMode ?? 'normal';
 
     const internalProps = (this.internalProps = {} as IBaseTableProtected);
     // style.initDocument(scrollBar);
@@ -253,12 +331,24 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     //设置是否自动撑开的配置
     // internalProps.autoRowHeight = options.autoRowHeight ?? false;
 
-    if (Env.mode !== 'node') {
+    if (this.options.canvas) {
+      if (Env.mode !== 'node') {
+        internalProps.element = this.options.canvas.parentElement;
+        internalProps.element.style.position = 'relative';
+      }
+      internalProps.focusControl = new FocusInput(this, internalProps.element);
+      internalProps.canvas = this.options.canvas;
+      internalProps.context = internalProps.canvas.getContext('2d')!;
+    } else if (Env.mode !== 'node') {
       internalProps.element = createRootElement(this.padding);
       internalProps.focusControl = new FocusInput(this, internalProps.element);
       internalProps.canvas = document.createElement('canvas');
       internalProps.element.appendChild(internalProps.canvas);
       internalProps.context = internalProps.canvas.getContext('2d')!;
+
+      if (options.customConfig?.createReactContainer) {
+        createReactContainer(this);
+      }
     }
 
     internalProps.handler = new EventHandler();
@@ -268,6 +358,8 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
 
     internalProps.pixelRatio = pixelRatio;
     internalProps.frozenColCount = frozenColCount;
+    internalProps.frozenRowCount = frozenRowCount;
+    internalProps.unfreezeAllOnExceedsMaxWidth = unfreezeAllOnExceedsMaxWidth ?? true;
 
     internalProps.defaultRowHeight = defaultRowHeight;
     internalProps.defaultHeaderRowHeight = defaultHeaderRowHeight ?? defaultRowHeight; // defaultHeaderRowHeight没有设置取defaultRowHeight
@@ -277,9 +369,12 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
 
     internalProps.keyboardOptions = keyboardOptions;
     internalProps.eventOptions = eventOptions;
+    internalProps.rowSeriesNumber = rowSeriesNumber;
+    // internalProps.columnSeriesNumber = columnSeriesNumber;
 
-    internalProps.columnResizeMode = columnResizeMode;
-    internalProps.dragHeaderMode = dragHeaderMode;
+    internalProps.columnResizeMode = resize?.columnResizeMode ?? columnResizeMode;
+    internalProps.rowResizeMode = resize?.rowResizeMode ?? rowResizeMode;
+    internalProps.dragHeaderMode = dragHeaderMode ?? 'none';
     internalProps.renderChartAsync = renderChartAsync;
     setBatchRenderChartCount(renderChartAsyncBatchCount);
     internalProps.overscrollBehavior = overscrollBehavior ?? 'auto';
@@ -287,16 +382,18 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     internalProps._rowRangeHeightsMap = new Map();
     internalProps._colRangeWidthsMap = new Map();
     internalProps._widthResizedColMap = new Set();
+    internalProps._heightResizedRowMap = new Set();
 
     this.colWidthsMap = new NumberMap();
     this.colContentWidthsMap = new NumberMap();
     this.colWidthsLimit = {};
 
+    const that = this;
     internalProps.calcWidthContext = {
       _: internalProps,
       get full(): number {
         if (Env.mode === 'node') {
-          return canvasWidth / (pixelRatio ?? 1);
+          return that.canvasWidth / (pixelRatio ?? 1);
         }
         return this._.canvas.width / ((this._.context as any).pixelRatio ?? window.devicePixelRatio);
       }
@@ -309,23 +406,27 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     internalProps.focusedTable = false;
     internalProps.theme = themes.of(options.theme ?? themes.DEFAULT); //原来在listTable文件中
     internalProps.theme.isPivot = this.isPivotTable();
-
+    setIconColor(internalProps.theme.functionalIconsStyle);
     if (container) {
-      //先清空
-      container.innerHTML = '';
+      // 先清空
+      if (clearDOM) {
+        container.innerHTML = '';
+      }
       container.appendChild(internalProps.element);
       this._updateSize();
     } else {
       this._updateSize();
     }
 
-    this.options = options;
-    internalProps.theme = themes.of(options.theme ?? themes.DEFAULT);
-    internalProps.theme.isPivot = this.isPivotTable();
+    // this.options = options;
+    // internalProps.theme = themes.of(options.theme ?? themes.DEFAULT);
+    // internalProps.theme.isPivot = this.isPivotTable();
     internalProps.bodyHelper = new BodyHelper(this);
     internalProps.headerHelper = new HeaderHelper(this);
+    internalProps.rowSeriesNumberHelper = new RowSeriesNumberHelper(this);
 
     internalProps.autoWrapText = options.autoWrapText;
+    internalProps.enableLineBreak = options.enableLineBreak;
 
     internalProps.allowFrozenColCount = options.allowFrozenColCount ?? 0;
     internalProps.limitMaxAutoWidth = options.limitMaxAutoWidth ?? 450;
@@ -337,31 +438,55 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
           ? 10
           : 0
         : 10;
+    internalProps.limitMinHeight =
+      limitMinHeight !== null && limitMinHeight !== undefined
+        ? typeof limitMinHeight === 'number'
+          ? limitMinHeight
+          : limitMinHeight
+          ? 10
+          : 0
+        : 10;
     // 生成scenegraph
-    this._vDataSet = new DataSet();
+    // this._vDataSet = new DataSet();
     this.scenegraph = new Scenegraph(this);
     this.stateManager = new StateManager(this);
     this.eventManager = new EventManager(this);
+    this.animationManager = new TableAnimationManager(this);
 
     if (options.legends) {
-      internalProps.legends = createLegend(options.legends, this);
-      this.scenegraph.tableGroup.setAttributes({
-        x: this.tableX,
-        y: this.tableY
-      });
+      internalProps.legends = [];
+      const createLegend = Factory.getFunction('createLegend') as CreateLegend;
+      if (Array.isArray(options.legends)) {
+        for (let i = 0; i < options.legends.length; i++) {
+          internalProps.legends.push(createLegend(options.legends[i], this));
+        }
+        this.scenegraph.tableGroup.setAttributes({
+          x: this.tableX,
+          y: this.tableY
+        });
+      } else {
+        internalProps.legends.push(createLegend(options.legends, this));
+        this.scenegraph.tableGroup.setAttributes({
+          x: this.tableX,
+          y: this.tableY
+        });
+      }
     }
 
     //原有的toolTip提示框处理，主要在文字绘制不全的时候 出来全文本提示信息 需要加个字段设置是否有效
     internalProps.tooltip = Object.assign(
       {
+        parentElement: this.getElement(),
         renderMode: 'html',
         isShowOverflowTextTooltip: false,
-        confine: true
+        confine: true,
+        position: Placement.bottom
       },
       options.tooltip
     );
     if (internalProps.tooltip.renderMode === 'html') {
-      internalProps.tooltipHandler = new TooltipHandler(this, internalProps.tooltip.confine);
+      const TooltipHandler = Factory.getComponent('tooltipHandler') as ITooltipHandler;
+      TooltipHandler && (internalProps.tooltipHandler = new TooltipHandler(this, internalProps.tooltip.confine));
     }
     internalProps.menu = Object.assign(
       {
@@ -373,26 +498,82 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
       this.setDropDownMenuHighlight(options.menu?.dropDownMenuHighlight);
 
     // 全局下拉菜单
-    Array.isArray(options.menu?.defaultHeaderMenuItems) &&
+    (Array.isArray(options.menu?.defaultHeaderMenuItems) ||
+      typeof options.menu?.defaultHeaderMenuItems === 'function') &&
       (this.globalDropDownMenu = options.menu.defaultHeaderMenuItems);
 
     if (internalProps.menu.renderMode === 'html') {
+      const MenuHandler = Factory.getComponent('menuHandler') as IMenuHandler;
       internalProps.menuHandler = new MenuHandler(this);
     }
 
     this.headerStyleCache = new Map();
     this.bodyStyleCache = new Map();
+    this.bodyMergeTitleCache = new Map();
     this.bodyBottomStyleCache = new Map();
 
     internalProps.stick = { changedCells: new Map() };
 
-    internalProps.customMergeCell = options.customMergeCell;
+    internalProps.customMergeCell = getCustomMergeCellFunc(options.customMergeCell);
 
-    this.customCellStylePlugin = new CustomCellStylePlugin(
-      this,
-      options.customCellStyle ?? [],
-      options.customCellStyleArrangement ?? []
-    );
+    const CustomCellStylePlugin = Factory.getComponent('customCellStylePlugin') as ICustomCellStylePlugin;
+    if (CustomCellStylePlugin) {
+      this.customCellStylePlugin = new CustomCellStylePlugin(
+        this,
+        options.customCellStyle ?? [],
+        options.customCellStyleArrangement ?? []
+      );
+    }
+    this._adjustCanvasSizeByOption();
+  }
+  _adjustCanvasSizeByOption() {
+    // 等宽高都进行了内部计算，判断如果配置了内容自动撑开表格，需要在这里赋值canvasWidth 和 canvasHeight
+    if (this.options.canvasHeight === 'auto' || this.options.canvasWidth === 'auto') {
+      setTimeout(() => {
+        let canvasWidth;
+        let canvasHeight;
+        if (this.options.canvasHeight === 'auto') {
+          let borderWidth = 0;
+          if (this.theme.frameStyle?.innerBorder) {
+            const shadowWidths = toBoxArray(this.internalProps.theme.frameStyle?.shadowBlur ?? [0]);
+            borderWidth += shadowWidths[1] ?? 0;
+          } else if (this.theme.frameStyle) {
+            const lineWidths = toBoxArray(this.internalProps.theme.frameStyle?.borderLineWidth ?? [null]);
+            const shadowWidths = toBoxArray(this.internalProps.theme.frameStyle?.shadowBlur ?? [0]);
+            borderWidth +=
+              (lineWidths[0] ?? 0) + (shadowWidths[0] ?? 0) + ((lineWidths[2] ?? 0) + (shadowWidths[2] ?? 0));
+          }
+          canvasHeight =
+            Math.min(
+              this.options.maxCanvasHeight ? this.options.maxCanvasHeight - borderWidth : 20000,
+              this.getAllRowsHeight()
+            ) + borderWidth;
+        } else {
+          canvasHeight = this.canvasHeight;
+        }
+        if (this.options.canvasWidth === 'auto') {
+          let borderWidth = 0;
+          if (this.theme.frameStyle?.innerBorder) {
+            const shadowWidths = toBoxArray(this.internalProps.theme.frameStyle?.shadowBlur ?? [0]);
+            borderWidth += shadowWidths[2] ?? 0;
+          } else if (this.theme.frameStyle) {
+            const lineWidths = toBoxArray(this.internalProps.theme.frameStyle?.borderLineWidth ?? [null]);
+            const shadowWidths = toBoxArray(this.internalProps.theme.frameStyle?.shadowBlur ?? [0]);
+            borderWidth +=
+              (lineWidths[1] ?? 0) + (shadowWidths[1] ?? 0) + ((lineWidths[3] ?? 0) + (shadowWidths[3] ?? 0));
+          }
+          canvasWidth =
+            Math.min(
+              this.options.maxCanvasWidth ? this.options.maxCanvasWidth - borderWidth : 20000,
+              this.getAllColsWidth()
+            ) + borderWidth;
+        } else {
+          canvasWidth = this.canvasWidth;
+        }
+
+        this.setCanvasSize(canvasWidth, canvasHeight);
+      }, 0);
+    }
   }
   /** 节流绘制 */
   throttleInvalidate = throttle2(this.render.bind(this), 200);
@@ -415,14 +596,23 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
   get canvas(): HTMLCanvasElement {
     return this.internalProps.canvas;
   }
-
+  setCanvasSize(canvasWidth: number, canvasHeight: number) {
+    this.canvasWidth = canvasWidth;
+    this.canvasHeight = canvasHeight;
+    this.options.canvasHeight = canvasHeight;
+    this.options.canvasWidth = canvasWidth;
+    this.resize();
+  }
   resize() {
     this._updateSize();
-    if (this.internalProps.legends) {
-      this.internalProps.legends.resize();
-    }
+    this.internalProps.legends?.forEach(legend => {
+      legend?.resize();
+    });
     if (this.internalProps.title) {
       this.internalProps.title.resize();
+    }
+    if (this.internalProps.emptyTip) {
+      this.internalProps.emptyTip.resize();
     }
     // this.stateManager.checkFrozen();
     this.scenegraph.resize();
@@ -456,7 +646,7 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
    * 注意 这个值和options.frozenColCount 不一样！options.frozenColCount是用户实际设置的; 这里获取的值是调整过:frozen的列过宽时 frozeCount为0
    */
   get frozenColCount(): number {
-    return this.internalProps.layoutMap?.frozenColCount ?? this.internalProps.frozenColCount ?? 0;
+    return this.internalProps?.layoutMap?.frozenColCount ?? this.internalProps?.frozenColCount ?? 0;
   }
   /**
    * Set the number of frozen columns.
@@ -469,9 +659,17 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     // const oldFrozenColCount = this.internalProps.frozenColCount;
     this.internalProps.frozenColCount = frozenColCount;
     this.options.frozenColCount = frozenColCount;
+
     // 纠正frozenColCount的值;
-    if (this.tableNoFrameWidth - this.getColsWidth(0, frozenColCount - 1) <= 120) {
-      this.internalProps.frozenColCount = 0;
+    const maxFrozenWidth = this._getMaxFrozenWidth();
+    // if (this.tableNoFrameWidth - this.getColsWidth(0, frozenColCount - 1) <= 120) {
+    if (this.getColsWidth(0, frozenColCount - 1) > maxFrozenWidth) {
+      if (this.internalProps.unfreezeAllOnExceedsMaxWidth) {
+        this.internalProps.frozenColCount = 0;
+      } else {
+        const computedFrozenColCount = this._getComputedFrozenColCount(frozenColCount);
+        this.internalProps.frozenColCount = computedFrozenColCount;
+      }
     }
     this.stateManager.setFrozenCol(this.internalProps.frozenColCount);
   }
@@ -484,9 +682,17 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     this.internalProps.frozenColCount = frozenColCount;
     this.options.frozenColCount = frozenColCount;
     //纠正frozenColCount的值
-    if (this.tableNoFrameWidth - this.getColsWidth(0, frozenColCount - 1) <= 120) {
-      this.internalProps.frozenColCount = 0;
+    const maxFrozenWidth = this._getMaxFrozenWidth();
+    // if (this.tableNoFrameWidth - this.getColsWidth(0, frozenColCount - 1) <= 120) {
+    if (this.getColsWidth(0, frozenColCount - 1) > maxFrozenWidth) {
+      if (this.internalProps.unfreezeAllOnExceedsMaxWidth) {
+        this.internalProps.frozenColCount = 0;
+      } else {
+        const computedFrozenColCount = this._getComputedFrozenColCount(frozenColCount);
+        this.internalProps.frozenColCount = computedFrozenColCount;
+      }
     }
+
     this.stateManager.setFrozenCol(this.internalProps.frozenColCount);
   }
   /**
@@ -516,18 +722,18 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
    * Get the number of frozen rows.
    */
   get frozenRowCount(): number {
-    return this.internalProps.layoutMap?.frozenRowCount ?? this.internalProps.frozenRowCount ?? 0;
+    return this.internalProps?.layoutMap?.frozenRowCount ?? this.internalProps?.frozenRowCount ?? 0;
   }
   /**
    * Set the number of frozen rows.
    */
   set frozenRowCount(frozenRowCount: number) {
     this.internalProps.frozenRowCount = frozenRowCount;
-    // this.options.frozenRowCount = frozenRowCount;
+    this.stateManager.setFrozenRow(this.internalProps.frozenRowCount);
   }
 
   get rightFrozenColCount(): number {
-    return this.internalProps.layoutMap?.rightFrozenColCount ?? this.internalProps.rightFrozenColCount ?? 0;
+    return this.internalProps?.layoutMap?.rightFrozenColCount ?? this.internalProps?.rightFrozenColCount ?? 0;
   }
 
   set rightFrozenColCount(rightFrozenColCount: number) {
@@ -535,7 +741,7 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
   }
 
   get bottomFrozenRowCount(): number {
-    return this.internalProps.layoutMap?.bottomFrozenRowCount ?? this.internalProps.bottomFrozenRowCount ?? 0;
+    return this.internalProps?.layoutMap?.bottomFrozenRowCount ?? this.internalProps?.bottomFrozenRowCount ?? 0;
   }
 
   set bottomFrozenRowCount(bottomFrozenRowCount: number) {
@@ -547,12 +753,15 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
    *
    */
   get defaultRowHeight(): number {
-    return this.internalProps.defaultRowHeight;
+    if (isNumber(this.internalProps.defaultRowHeight)) {
+      return this.internalProps.defaultRowHeight as number;
+    }
+    return 40;
   }
   /**
    * Set the default row height.
    */
-  set defaultRowHeight(defaultRowHeight: number) {
+  set defaultRowHeight(defaultRowHeight: number | 'auto') {
     this.internalProps.defaultRowHeight = defaultRowHeight;
     this.options.defaultRowHeight = defaultRowHeight;
   }
@@ -727,6 +936,22 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
       this._autoFillHeight = autoFillHeight;
     }
   }
+  get widthAdaptiveMode(): WidthAdaptiveModeDef {
+    return this._widthAdaptiveMode;
+  }
+  set widthAdaptiveMode(widthAdaptiveMode: WidthAdaptiveModeDef) {
+    if (widthAdaptiveMode !== this._widthAdaptiveMode) {
+      this._widthAdaptiveMode = widthAdaptiveMode;
+    }
+  }
+  get heightAdaptiveMode(): HeightAdaptiveModeDef {
+    return this._heightAdaptiveMode;
+  }
+  set heightAdaptiveMode(heightAdaptiveMode: HeightAdaptiveModeDef) {
+    if (heightAdaptiveMode !== this._heightAdaptiveMode) {
+      this._heightAdaptiveMode = heightAdaptiveMode;
+    }
+  }
   /**
    * 根据设置的列宽配置 计算列宽值
    * @param {string|number} width width definition
@@ -740,6 +965,21 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     return _toPxWidth(this, width);
   }
 
+  _getMaxFrozenWidth(): number {
+    const maxFrozenWidth = this.options.maxFrozenWidth ?? '80%';
+    return _toPxWidth(this, maxFrozenWidth);
+  }
+  _getComputedFrozenColCount(frozenColCount: number): number {
+    const maxFrozenWidth = this._getMaxFrozenWidth();
+    let computedfrozenColCount = frozenColCount;
+    while (this.getColsWidth(0, computedfrozenColCount - 1) > maxFrozenWidth) {
+      computedfrozenColCount--;
+      if (computedfrozenColCount <= 0) {
+        break;
+      }
+    }
+    return computedfrozenColCount;
+  }
   /**
    * 获取列宽的最大最小限制
    * @param {number} col number of column
@@ -779,15 +1019,30 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     const limits = this._getColWidthLimits(col);
     return Math.max(_applyColWidthLimits(limits, orgWidth), 0);
   }
-
+  get pixelRatio(): number {
+    return this.internalProps.pixelRatio;
+  }
   /**
    * 设置像数比
    * @param pixelRatio
    */
   setPixelRatio(pixelRatio: number) {
-    this.internalProps.pixelRatio = pixelRatio;
-    this.scenegraph.setPixelRatio(pixelRatio);
+    if (pixelRatio !== this.internalProps?.pixelRatio) {
+      this.internalProps.pixelRatio = pixelRatio;
+      const canvasWidth = this.canvasWidth;
+      this.internalProps.calcWidthContext = {
+        _: this.internalProps,
+        get full(): number {
+          if (Env.mode === 'node') {
+            return canvasWidth / (pixelRatio ?? 1);
+          }
+          return this._.canvas.width / ((this._.context as any).pixelRatio ?? window.devicePixelRatio);
+        }
+      };
+      this.scenegraph.setPixelRatio(pixelRatio);
+    }
   }
+
   /**
    * 窗口尺寸发生变化 或者像数比变化
    * @return {void}
@@ -798,19 +1053,51 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
 
     let widthP = 0;
     let heightP = 0;
+    this.tableX = 0;
+    this.tableY = 0;
 
-    if (Env.mode === 'browser') {
+    if (this.options.canvas && this.options.viewBox) {
+      widthP = this.options.viewBox.x2 - this.options.viewBox.x1;
+      heightP = this.options.viewBox.y2 - this.options.viewBox.y1;
+      // this.tableX = this.options.viewBox.x1;
+      // this.tableY = this.options.viewBox.y1;
+      if (this?.scenegraph?.stage) {
+        if (this.options.viewBox) {
+          (this.scenegraph.stage as any).setViewBox(this.options.viewBox, false);
+        } else {
+          this.scenegraph.stage.resize(widthP, heightP);
+        }
+      }
+    } else if (Env.mode === 'browser') {
       const element = this.getElement();
+      let widthWithoutPadding = 0;
+      let heightWithoutPadding = 0;
+      if (this.canvasSizeSeted) {
+        widthWithoutPadding = this.canvasWidth;
+        heightWithoutPadding = this.canvasHeight;
+      } else {
+        if (element.parentElement) {
+          const computedStyle = element.parentElement.style || window.getComputedStyle(element.parentElement); // 兼容性处理
+          widthWithoutPadding =
+            element.parentElement.offsetWidth -
+            parseInt(computedStyle.paddingLeft || '0px', 10) -
+            parseInt(computedStyle.paddingRight || '0px', 10);
+          heightWithoutPadding =
+            element.parentElement.offsetHeight -
+            parseInt(computedStyle.paddingTop || '0px', 10) -
+            parseInt(computedStyle.paddingBottom || '0px', 20);
+          widthWithoutPadding = (widthWithoutPadding ?? 1) - (this.options.tableSizeAntiJitter ? 1 : 0);
+          heightWithoutPadding = (heightWithoutPadding ?? 1) - (this.options.tableSizeAntiJitter ? 1 : 0);
+        }
+      }
 
-      const width1 = element.parentElement?.offsetWidth ?? 1 - 1;
-      const height1 = element.parentElement?.offsetHeight ?? 1 - 1;
-
-      element.style.width = (width1 && `${width1 - padding.left - padding.right}px`) || '0px';
-      element.style.height = (height1 && `${height1 - padding.top - padding.bottom}px`) || '0px';
+      element.style.width = (widthWithoutPadding && `${widthWithoutPadding - padding.left - padding.right}px`) || '0px';
+      element.style.height =
+        (heightWithoutPadding && `${heightWithoutPadding - padding.top - padding.bottom}px`) || '0px';
 
       const { canvas } = this.internalProps;
-      widthP = canvas.parentElement?.offsetWidth ?? 1 - 1;
-      heightP = canvas.parentElement?.offsetHeight ?? 1 - 1;
+      widthP = (canvas.parentElement?.offsetWidth ?? 1) - (this.options.tableSizeAntiJitter ? 1 : 0);
+      heightP = (canvas.parentElement?.offsetHeight ?? 1) - (this.options.tableSizeAntiJitter ? 1 : 0);
 
       //style 与 width，height相同
       if (this?.scenegraph?.stage) {
@@ -829,8 +1116,8 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
       heightP = this.canvasHeight - 1;
     }
 
-    const width = Math.floor(widthP - style.getScrollBarSize(this.getTheme().scrollStyle));
-    const height = Math.floor(heightP - style.getScrollBarSize(this.getTheme().scrollStyle));
+    const width = Math.floor(widthP - style.getVerticalScrollBarSize(this.getTheme().scrollStyle));
+    const height = Math.floor(heightP - style.getHorizontalScrollBarSize(this.getTheme().scrollStyle));
 
     if (this.internalProps.theme?.frameStyle) {
       //考虑表格整体边框的问题
@@ -852,7 +1139,25 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     }
   }
 
-  get rowHierarchyType(): 'grid' | 'tree' {
+  updateViewBox(newViewBox: IBoundsLike) {
+    const oldWidth = this.options?.viewBox.x2 ?? 0 - this.options?.viewBox.x1 ?? 0;
+    const oldHeight = this.options?.viewBox.y2 ?? 0 - this.options?.viewBox.y1 ?? 0;
+    const newWidth = newViewBox.x2 - newViewBox.x1;
+    const newHeight = newViewBox.y2 - newViewBox.y1;
+    this.options.viewBox = newViewBox;
+    if (oldWidth !== newWidth || oldHeight !== newHeight) {
+      this.resize();
+    } else {
+      (this.scenegraph.stage as any).setViewBox(this.options.viewBox, true);
+    }
+  }
+
+  setViewBoxTransform(a: number, b: number, c: number, d: number, e: number, f: number) {
+    this.internalProps.modifiedViewBoxTransform = true;
+    this.scenegraph.stage.window.setViewBoxTransform(a, b, c, d, e, f);
+  }
+
+  get rowHierarchyType(): 'grid' | 'tree' | 'grid-tree' {
     return 'grid';
   }
 
@@ -947,6 +1252,23 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     //     : this.internalProps.defaultRowHeight)
     //     );
     if (isValid(this.rowHeightsMap.get(row))) {
+      if (this.options.customConfig?._disableColumnAndRowSizeRound) {
+        const height = this.rowHeightsMap.get(row);
+        let heightRange;
+        if (row < this.frozenRowCount) {
+          heightRange = this.rowHeightsMap.getSumInRange(0, row);
+        } else if (row >= this.rowCount - this.bottomFrozenRowCount) {
+          heightRange = this.rowHeightsMap.getSumInRange(row, this.rowCount - 1);
+        } else {
+          heightRange = this.rowHeightsMap.getSumInRange(this.frozenRowCount, row);
+        }
+        heightRange = Number(heightRange.toFixed(2)); // avoid precision problem
+        // if heightRange number is int
+        if (Number.isInteger(heightRange)) {
+          return Math.ceil(height);
+        }
+        return Math.floor(height);
+      }
       return this.rowHeightsMap.get(row);
     }
     const defaultHeight = this.getDefaultRowHeight(row);
@@ -956,13 +1278,35 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     return this.defaultRowHeight;
   }
 
+  getDefaultColumnWidth(col: number) {
+    // return col < this.rowHeaderLevelCount
+    //   ? Array.isArray(this.defaultHeaderColWidth)
+    //     ? this.defaultHeaderColWidth[col] ?? this.defaultColWidth
+    //     : this.defaultHeaderColWidth
+    //   : this.defaultColWidth;
+    if (this.isRowHeader(col, 0) || this.isCornerHeader(col, 0)) {
+      return Array.isArray(this.defaultHeaderColWidth)
+        ? this.defaultHeaderColWidth[col] ?? this.defaultColWidth
+        : this.defaultHeaderColWidth;
+    } else if (this.isRightFrozenColumn(col, this.columnHeaderLevelCount)) {
+      if (this.isPivotTable()) {
+        return Array.isArray(this.defaultHeaderColWidth)
+          ? this.defaultHeaderColWidth[this.rowHeaderLevelCount - this.rightFrozenColCount] ?? this.defaultColWidth
+          : this.defaultHeaderColWidth;
+      }
+      return this.defaultColWidth;
+    }
+    return this.defaultColWidth;
+  }
+
   getDefaultRowHeight(row: number) {
-    if (this.isColumnHeader(0, row) || this.isCornerHeader(0, row)) {
+    if (this.isColumnHeader(0, row) || this.isCornerHeader(0, row) || this.isSeriesNumberInHeader(0, row)) {
       return Array.isArray(this.defaultHeaderRowHeight)
         ? this.defaultHeaderRowHeight[row] ?? this.internalProps.defaultRowHeight
         : this.defaultHeaderRowHeight;
     }
-    if (this.isBottomFrozenRow(this.rowHeaderLevelCount, row)) {
+    if (this.isBottomFrozenRow(row)) {
+      //底部冻结行默认取用了表头的行高  但针对非表头数据冻结的情况这里可能不妥
       return Array.isArray(this.defaultHeaderRowHeight)
         ? this.defaultHeaderRowHeight[
             this.columnHeaderLevelCount > 0 ? this.columnHeaderLevelCount - this.bottomFrozenRowCount : 0
@@ -978,12 +1322,19 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
    */
   _setRowHeight(row: number, height: number, clearCache?: boolean): void {
     // this.rowHeightsMap.put(row, Math.round(height));
-    this.rowHeightsMap.put(row, Math.round(height));
+    this.rowHeightsMap.put(row, this.options.customConfig?._disableColumnAndRowSizeRound ? height : Math.round(height));
     // 清楚影响缓存
     if (clearCache) {
       this._clearRowRangeHeightsMap(row);
     }
   }
+
+  setRowHeight(row: number, height: number) {
+    this.scenegraph.setRowHeight(row, height);
+    this.scenegraph.updateChartSizeForResizeRowHeight(row);
+    this.internalProps._heightResizedRowMap.add(row); // add resize tag
+  }
+
   /**
    * 获取指定行范围的总高度
    * @param startCol
@@ -991,70 +1342,70 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
    * @returns
    */
   getRowsHeight(startRow: number, endRow: number): number {
-    if (startRow > endRow) {
+    if (startRow > endRow || this.rowCount === 0) {
       return 0;
     }
     startRow = Math.max(startRow, 0);
     endRow = Math.min(endRow, (this.rowCount ?? Infinity) - 1);
-    //通过缓存获取指定范围行高
-    // const cachedRowHeight = this._rowRangeHeightsMap.get(`$${startRow}$${endRow}`);
-    // if (cachedRowHeight !== null && cachedRowHeight !== undefined) {
-    //   return cachedRowHeight;
-    // }
-    // //特殊处理 先尝试获取startRow->endRow-1的行高
-    // const cachedLowerRowHeight = this._rowRangeHeightsMap.get(`$${startRow}$${endRow - 1}`);
-    // if (cachedLowerRowHeight !== null && cachedLowerRowHeight !== undefined) {
-    //   const height = Math.round(
-    //     cachedLowerRowHeight +
-    //       (this.rowHeightsMap.get(endRow) ??
-    //         (this.isColumnHeader(0, endRow) || this.isCornerHeader(0, endRow)
-    //           ? Array.isArray(this.defaultHeaderRowHeight) && isNumber(this.defaultHeaderRowHeight[endRow])
-    //             ? (this.defaultHeaderRowHeight[endRow] as number)
-    //             : isNumber(this.defaultHeaderRowHeight)
-    //             ? (this.defaultHeaderRowHeight as number)
-    //             : this.internalProps.defaultRowHeight
-    //           : this.internalProps.defaultRowHeight))
-    //   );
-    //   if (startRow >= 0 && endRow >= 0) {
-    //     this._rowRangeHeightsMap.set(`$${startRow}$${endRow}`, Math.round(height));
-    //   }
-    //   return height;
-    // }
 
     let h = 0;
-    // for (let i = startRow; i <= endRow; i++) {
-    //   h +=
-    //     this.rowHeightsMap.get(i) ||
-    //     (this.isColumnHeader(0, i) || this.isCornerHeader(0, i)
-    //       ? Array.isArray(this.defaultHeaderRowHeight)
-    //         ? this.defaultHeaderRowHeight[i] ?? this.internalProps.defaultRowHeight
-    //         : this.defaultHeaderRowHeight
-    //       : this.internalProps.defaultRowHeight);
-    // }
+    const isDefaultRowHeightIsAuto = this.options.defaultRowHeight === 'auto';
     // autoRowHeight || all rows in header, use accumulation
     if (
       this.heightMode === 'standard' &&
+      !this.options.customComputeRowHeight &&
       !this.autoFillHeight &&
       this.internalProps.layoutMap &&
-      endRow >= this.columnHeaderLevelCount &&
-      !this.bottomFrozenRowCount &&
-      !this.hasAutoImageColumn()
+      // endRow >= this.columnHeaderLevelCount &&
+      // !this.bottomFrozenRowCount &&
+      !this.hasAutoImageColumn() &&
+      !isDefaultRowHeightIsAuto &&
+      this.internalProps._heightResizedRowMap.size === 0
     ) {
-      for (let i = startRow; i < this.columnHeaderLevelCount; i++) {
-        // part in header
+      // part in header
+      for (let i = startRow; i < Math.min(endRow + 1, this.columnHeaderLevelCount); i++) {
         h += this.getRowHeight(i);
       }
       // part in body
-      h += this.defaultRowHeight * (endRow - Math.max(this.columnHeaderLevelCount, startRow) + 1);
+      if (endRow >= this.columnHeaderLevelCount) {
+        h +=
+          this.defaultRowHeight *
+          (Math.min(endRow, this.rowCount - this.bottomFrozenRowCount - 1) -
+            Math.max(this.columnHeaderLevelCount, startRow) +
+            1);
+      }
+      // part in bottom frozen
+      // last axis row height is default header row height in pivot chart
+      for (let i = this.rowCount - this.bottomFrozenRowCount; i < endRow + 1; i++) {
+        h += this.getRowHeight(i);
+      }
     } else {
-      // for (let i = startRow; i <= endRow; i++) {
-      //   h += this.getRowHeight(i);
-      // }
+      if (this.options.customConfig?._disableColumnAndRowSizeRound) {
+        // for (let i = startRow; i <= endRow; i++) {
+        //   h += this.getRowHeight(i);
+        // }
+        const tempH = this.rowHeightsMap.getSumInRange(startRow, endRow);
+        let heightRange;
+        if (endRow < this.frozenRowCount) {
+          heightRange = this.rowHeightsMap.getSumInRange(0, endRow);
+        } else if (endRow >= this.rowCount - this.bottomFrozenRowCount) {
+          heightRange = this.rowHeightsMap.getSumInRange(endRow, this.rowCount - 1);
+        } else {
+          heightRange = this.rowHeightsMap.getSumInRange(this.frozenRowCount, endRow);
+        }
+        heightRange = Number(heightRange.toFixed(2)); // avoid precision problem
+        // if heightRange number is int
+        if (Number.isInteger(heightRange)) {
+          return Math.ceil(tempH);
+        }
+        return Math.floor(tempH);
+      }
       h = this.rowHeightsMap.getSumInRange(startRow, endRow);
     }
-    // if (startRow >= 0 && endRow >= 0 && h > 0) {
-    //   this._rowRangeHeightsMap.set(`$${startRow}$${endRow}`, Math.round(h));
-    // }
+    // if (this.options._disableColumnAndRowSizeRound) {
+    //   // console.log(startRow, endRow, Number(h.toFixed(2)));
+    //   // return Number(h.toFixed(2));
+    //   return h;
     // }
     return Math.round(h);
   }
@@ -1076,19 +1427,21 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
       return 0;
     } else if (width) {
       return width;
-    } else if (this.isRowHeader(col, 0) || this.isCornerHeader(col, 0)) {
-      return Array.isArray(this.defaultHeaderColWidth)
-        ? this.defaultHeaderColWidth[col] ?? this.defaultColWidth
-        : this.defaultHeaderColWidth;
-    } else if (this.isRightFrozenColumn(col, this.columnHeaderLevelCount)) {
-      if (this.isPivotTable()) {
-        return Array.isArray(this.defaultHeaderColWidth)
-          ? this.defaultHeaderColWidth[this.rowHeaderLevelCount - this.rightFrozenColCount] ?? this.defaultColWidth
-          : this.defaultHeaderColWidth;
-      }
-      return this.defaultColWidth;
     }
-    return this.defaultColWidth;
+    return this.getDefaultColumnWidth(col);
+    // } else if (this.isRowHeader(col, 0) || this.isCornerHeader(col, 0)) {
+    //   return Array.isArray(this.defaultHeaderColWidth)
+    //     ? this.defaultHeaderColWidth[col] ?? this.defaultColWidth
+    //     : this.defaultHeaderColWidth;
+    // } else if (this.isRightFrozenColumn(col, this.columnHeaderLevelCount)) {
+    //   if (this.isPivotTable()) {
+    //     return Array.isArray(this.defaultHeaderColWidth)
+    //       ? this.defaultHeaderColWidth[this.rowHeaderLevelCount - this.rightFrozenColCount] ?? this.defaultColWidth
+    //       : this.defaultHeaderColWidth;
+    //   }
+    //   return this.defaultColWidth;
+    // }
+    // return this.defaultColWidth;
   }
 
   // setColWidthDefined(col: number, width: number) {
@@ -1101,7 +1454,17 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     const width = this.getColWidthDefined(col);
     return this._adjustColWidth(col, this._colWidthDefineToPxWidth(width));
   }
-
+  /** 判断某行是否应该计算行高 */
+  isAutoRowHeight(row?: number): boolean {
+    if (this.heightMode === 'autoHeight') {
+      return true;
+    } else if (this.options.customComputeRowHeight) {
+      return true;
+    } else if (row >= 0 && row < this.columnHeaderLevelCount) {
+      return this.getDefaultRowHeight(row) === 'auto';
+    }
+    return false;
+  }
   /**
    * 根据列号获取列宽定义
    * @param {number} col column number
@@ -1134,13 +1497,7 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
    */
   getColWidth(col: number): number {
     // const width = this.getColWidthDefine(col);
-    const width =
-      this.colWidthsMap.get(col) ??
-      (col < this.rowHeaderLevelCount
-        ? Array.isArray(this.defaultHeaderColWidth)
-          ? this.defaultHeaderColWidth[col] ?? this.defaultColWidth
-          : this.defaultHeaderColWidth
-        : this.defaultColWidth);
+    const width = this.colWidthsMap.get(col) ?? this.getDefaultColumnWidth(col);
     if (
       (this.widthMode === 'adaptive' && typeof width === 'number') ||
       ((this as any).transpose && typeof width === 'number')
@@ -1157,7 +1514,11 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
    * @returns
    */
   _setColWidth(col: number, width: string | number, clearCache?: boolean, skipCheckFrozen?: boolean): void {
-    this.colWidthsMap.put(col, typeof width === 'number' ? Math.round(width) : width);
+    this.colWidthsMap.put(
+      col,
+      // typeof width === 'number' ? (this.options.customConfig?._disableColumnAndRowSizeRound ? width : Math.round(width)) : width
+      typeof width === 'number' ? Math.round(width) : width
+    );
     // 清楚影响缓存
     if (clearCache) {
       this._clearColRangeWidthsMap(col);
@@ -1167,6 +1528,12 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     if (!skipCheckFrozen) {
       this.stateManager.checkFrozen();
     }
+  }
+
+  setColWidth(col: number, width: number) {
+    this.scenegraph.setColWidth(col, width);
+    this.scenegraph.updateChartSizeForResizeColWidth(col);
+    this.internalProps._widthResizedColMap.add(col); // add resize tag
   }
 
   /**
@@ -1305,7 +1672,11 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     const width = this.getColWidth(col);
     if (isFrozenCell && isFrozenCell.col) {
       if (this.isRightFrozenColumn(col, row)) {
-        absoluteLeft = this.tableNoFrameWidth - (this.getColsWidth(col, this.colCount - 1) ?? 0);
+        if (this.getAllColsWidth() <= this.tableNoFrameWidth) {
+          absoluteLeft = this.getColsWidth(0, col - 1) || 0;
+        } else {
+          absoluteLeft = this.tableNoFrameWidth - (this.getColsWidth(col, this.colCount - 1) ?? 0);
+        }
       } else {
         absoluteLeft = this.getColsWidth(0, col - 1) || 0;
         // absoluteLeft += this.scrollLeft;
@@ -1318,7 +1689,11 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     const height = this.getRowHeight(row);
     if (isFrozenCell && isFrozenCell.row) {
       if (this.isBottomFrozenRow(col, row)) {
-        absoluteTop = this.tableNoFrameHeight - (this.getRowsHeight(row, this.rowCount - 1) ?? 0);
+        if (this.getAllRowsHeight() <= this.tableNoFrameHeight) {
+          absoluteTop = this.getRowsHeight(0, row - 1);
+        } else {
+          absoluteTop = this.tableNoFrameHeight - (this.getRowsHeight(row, this.rowCount - 1) ?? 0);
+        }
       } else {
         absoluteTop = this.getRowsHeight(0, row - 1);
         // absoluteTop += this.scrollTop;
@@ -1462,6 +1837,10 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     const scrollLeft = this.scrollLeft;
     if (this.isLeftFrozenColumn(startCol) && this.isRightFrozenColumn(endCol)) {
       width = this.tableNoFrameWidth - (this.getColsWidth(startCol + 1, this.colCount - 1) ?? 0) - absoluteLeft;
+      // width =
+      //   this.tableNoFrameWidth -
+      //   (this.getColsWidth(0, startCol - 1) ?? 0) -
+      //   (this.getColsWidth(endCol + 1, this.colCount - 1) ?? 0);
     } else if (this.isLeftFrozenColumn(startCol) && !this.isLeftFrozenColumn(endCol)) {
       width = Math.max(width - scrollLeft, this.getColsWidth(startCol, this.frozenColCount - 1));
     } else if (!this.isRightFrozenColumn(startCol) && this.isRightFrozenColumn(endCol)) {
@@ -1479,6 +1858,10 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     const scrollTop = this.scrollTop;
     if (this.isTopFrozenRow(startRow) && this.isBottomFrozenRow(endRow)) {
       height = this.tableNoFrameHeight - (this.getRowsHeight(startRow + 1, this.rowCount - 1) ?? 0) - absoluteTop;
+      // height =
+      //   this.tableNoFrameHeight -
+      //   (this.getRowsHeight(0, startRow - 1) ?? 0) -
+      //   (this.getRowsHeight(endRow + 1, this.rowCount - 1) ?? 0);
     } else if (this.isTopFrozenRow(startRow) && !this.isTopFrozenRow(endRow)) {
       height = Math.max(height - scrollTop, this.getRowsHeight(startRow, this.frozenRowCount - 1));
     } else if (!this.isBottomFrozenRow(startRow) && this.isBottomFrozenRow(endRow)) {
@@ -1555,8 +1938,8 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     row: boolean;
     col: boolean;
   } | null {
-    const isFrozenRow = this.isFrozenRow(row) || this.isBottomFrozenRow(row);
-    const isFrozenCol = this.isFrozenColumn(col) || this.isRightFrozenColumn(col);
+    const isFrozenRow = this.isFrozenRow(row);
+    const isFrozenCol = this.isFrozenColumn(col);
     if (isFrozenRow || isFrozenCol) {
       return {
         row: isFrozenRow,
@@ -1571,20 +1954,7 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
    * @returns
    */
   getRowAt(absoluteY: number): { top: number; row: number; bottom: number; height: number } {
-    const frozen = _getTargetFrozenRowAt(this, absoluteY);
-    if (frozen) {
-      return frozen;
-    }
-    let row = this.getTargetRowAt(absoluteY);
-    if (!row) {
-      row = {
-        top: -1,
-        row: -1,
-        bottom: -1,
-        height: -1
-      };
-    }
-    return row;
+    return getRowAt(absoluteY, this);
   }
   /**
    * 根据x值计算所在列
@@ -1592,20 +1962,7 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
    * @returns
    */
   getColAt(absoluteX: number): { left: number; col: number; right: number; width: number } {
-    const frozen = _getTargetFrozenColAt(this, absoluteX);
-    if (frozen) {
-      return frozen;
-    }
-    let col = this.getTargetColAt(absoluteX);
-    if (!col) {
-      col = {
-        left: -1,
-        col: -1,
-        right: -1,
-        width: 1
-      };
-    }
-    return col;
+    return getColAt(absoluteX, this);
   }
   /**
    * 根据坐标值获取行列位置，index和rect范围
@@ -1614,23 +1971,18 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
    * @returns
    */
   getCellAt(absoluteX: number, absoluteY: number): CellAddressWithBound {
-    const rowInfo = this.getRowAt(absoluteY);
-    const { row, top, bottom, height } = rowInfo;
-    const colInfo = this.getColAt(absoluteX);
-    const { col, left, right, width } = colInfo;
-    const rect = {
-      left,
-      right,
-      top,
-      bottom,
-      width,
-      height
-    };
-    return {
-      row,
-      col,
-      rect
-    };
+    return getCellAt(absoluteX, absoluteY, this);
+  }
+
+  /**
+   * 获取屏幕坐标对应的单元格信息，考虑滚动
+   * @param this
+   * @param relativeX 左边x值，相对于容器左上角，已考虑格滚动情况
+   * @param relativeY 左边y值，相对于容器左上角，已考虑格滚动情况
+   * @returns
+   */
+  getCellAtRelativePosition(relativeX: number, relativeY: number): CellAddressWithBound {
+    return getCellAtRelativePosition(relativeX, relativeY, this);
   }
   /**
    * 检查行列号是否正确
@@ -1710,6 +2062,8 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     const visibleRect = this.getVisibleRect();
     rect.offsetLeft(this.tableX - (relativeX ? visibleRect.left : 0));
     rect.offsetTop(this.tableY - (relativeY ? visibleRect.top : 0));
+    rect.offsetLeft(this.options.viewBox?.x1 ?? 0);
+    rect.offsetTop(this.options.viewBox?.y1 ?? 0);
     return rect;
   }
 
@@ -1896,6 +2250,9 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
    */
   release(): void {
     const internalProps = this.internalProps;
+    if (this.isReleased) {
+      return;
+    }
     internalProps.tooltipHandler?.release?.();
     internalProps.menuHandler?.release?.();
     IconCache.clearAll();
@@ -1903,9 +2260,15 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     super.release?.();
     internalProps.handler?.release?.();
     // internalProps.scrollable?.release?.();
+    this.eventManager.release();
     internalProps.focusControl?.release?.();
-    internalProps.legends?.release();
+    internalProps.legends?.forEach(legend => {
+      legend?.release();
+    });
     internalProps.title?.release();
+    internalProps.title = null;
+    internalProps.emptyTip?.release();
+    internalProps.emptyTip = null;
     internalProps.layoutMap.release();
     if (internalProps.releaseList) {
       internalProps.releaseList.forEach(releaseObj => releaseObj?.release?.());
@@ -1915,12 +2278,17 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     this.scenegraph.stage.release();
     this.scenegraph.proxy.release();
 
+    internalProps.focusControl.release();
     const { parentElement } = internalProps.element;
-    if (parentElement) {
+    if (parentElement && !this.options.canvas) {
       parentElement.removeChild(internalProps.element);
     }
-
+    (this as any).editorManager?.editingEditor?.onEnd?.();
     this.isReleased = true;
+    this.scenegraph = null;
+    this.internalProps = null;
+
+    this.reactCustomLayout?.clearCache();
   }
 
   fireListeners<TYPE extends keyof TableEventHandlersEventArgumentMap>(
@@ -1936,10 +2304,12 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
    */
   updateOption(options: BaseTableConstructorOptions) {
     (this.options as BaseTable['options']) = options;
+    this._hasAutoImageColumn = undefined;
     const {
       // rowCount = 0,
       // colCount = 0,
       frozenColCount = 0,
+      unfreezeAllOnExceedsMaxWidth,
       // frozenRowCount = 0,
       defaultRowHeight = 40,
       defaultHeaderRowHeight,
@@ -1947,8 +2317,12 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
       defaultHeaderColWidth = 80,
       keyboardOptions,
       eventOptions,
+      rowSeriesNumber,
+      // columnSeriesNumber,
       // disableRowHeaderColumnResize,
       columnResizeMode,
+      rowResizeMode = 'none',
+      resize,
       dragHeaderMode,
 
       // scrollBar,
@@ -1963,11 +2337,16 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
       heightMode,
       autoFillWidth,
       autoFillHeight,
+      widthAdaptiveMode,
+      heightAdaptiveMode,
       customRender,
       renderChartAsync,
       renderChartAsyncBatchCount,
+      canvasWidth,
+      canvasHeight,
       overscrollBehavior,
-      limitMinWidth
+      limitMinWidth,
+      limitMinHeight
     } = options;
     if (pixelRatio && pixelRatio !== this.internalProps.pixelRatio) {
       this.internalProps.pixelRatio = pixelRatio;
@@ -1993,17 +2372,25 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
 
     this.widthMode = widthMode ?? 'standard';
     this.heightMode = heightMode ?? 'standard';
+    this._widthAdaptiveMode = widthAdaptiveMode ?? 'only-body';
+    this._heightAdaptiveMode = heightAdaptiveMode ?? 'only-body';
     this.autoFillWidth = autoFillWidth ?? false;
     this.autoFillHeight = autoFillHeight ?? false;
     this.customRender = customRender;
+    this.canvasWidth = isNumber(canvasWidth) ? canvasWidth : undefined;
+    this.canvasHeight = isNumber(canvasHeight) ? canvasHeight : undefined;
     // 更新protectedSpace
     const internalProps: IBaseTableProtected = this.internalProps;
-    if (Env.mode !== 'node') {
+    if (Env.mode !== 'node' && !options.canvas) {
       updateRootElementPadding(internalProps.element, this.padding);
     }
+
+    this.columnWidthComputeMode = options.columnWidthComputeMode ?? 'normal';
+
     // internalProps.rowCount = rowCount;
     // internalProps.colCount = colCount;
     internalProps.frozenColCount = frozenColCount;
+    internalProps.unfreezeAllOnExceedsMaxWidth = unfreezeAllOnExceedsMaxWidth ?? true;
     // internalProps.frozenRowCount = frozenRowCount;
     internalProps.defaultRowHeight = defaultRowHeight;
     internalProps.defaultHeaderRowHeight = defaultHeaderRowHeight ?? defaultRowHeight;
@@ -2011,9 +2398,12 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     internalProps.defaultHeaderColWidth = defaultHeaderColWidth ?? defaultColWidth;
     internalProps.keyboardOptions = keyboardOptions;
     internalProps.eventOptions = eventOptions;
+    internalProps.rowSeriesNumber = rowSeriesNumber;
+    // internalProps.columnSeriesNumber = columnSeriesNumber;
 
-    internalProps.columnResizeMode = columnResizeMode;
-    internalProps.dragHeaderMode = dragHeaderMode;
+    internalProps.columnResizeMode = resize?.columnResizeMode ?? columnResizeMode;
+    internalProps.rowResizeMode = resize?.rowResizeMode ?? rowResizeMode;
+    internalProps.dragHeaderMode = dragHeaderMode ?? 'none';
     internalProps.renderChartAsync = renderChartAsync;
     setBatchRenderChartCount(renderChartAsyncBatchCount);
     internalProps.overscrollBehavior = overscrollBehavior ?? 'auto';
@@ -2023,6 +2413,7 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     internalProps._colRangeWidthsMap = new Map();
 
     internalProps._widthResizedColMap = new Set();
+    internalProps._heightResizedRowMap = new Set();
 
     this.colWidthsMap = new NumberMap();
     this.colContentWidthsMap = new NumberMap();
@@ -2032,12 +2423,14 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
 
     internalProps.theme = themes.of(options.theme ?? themes.DEFAULT);
     internalProps.theme.isPivot = this.isPivotTable();
+    setIconColor(internalProps.theme.functionalIconsStyle);
     this.scenegraph.updateStageBackground();
     // this._updateSize();
     //设置是否自动撑开的配置
     // internalProps.autoRowHeight = options.autoRowHeight ?? false;
     //是否统一设置为多行文本
     internalProps.autoWrapText = options.autoWrapText;
+    internalProps.enableLineBreak = options.enableLineBreak;
     internalProps.allowFrozenColCount = options.allowFrozenColCount ?? 0;
     internalProps.limitMaxAutoWidth = options.limitMaxAutoWidth ?? 450;
     internalProps.limitMinWidth =
@@ -2048,10 +2441,23 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
           ? 10
           : 0
         : 10;
+    internalProps.limitMinHeight =
+      limitMinHeight !== null && limitMinHeight !== undefined
+        ? typeof limitMinHeight === 'number'
+          ? limitMinHeight
+          : limitMinHeight
+          ? 10
+          : 0
+        : 10;
     // 生成scenegraph
-    this._vDataSet = new DataSet();
-    internalProps.legends?.release();
+    // this._vDataSet = new DataSet();
+    internalProps.legends?.forEach(legend => {
+      legend?.release();
+    });
     internalProps.title?.release();
+    internalProps.title = null;
+    internalProps.emptyTip?.release();
+    internalProps.emptyTip = null;
     internalProps.layoutMap.release();
     this.scenegraph.clearCells();
     this.scenegraph.updateComponent();
@@ -2062,11 +2468,23 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     // this.eventManager = new EventManager(this);
     this.eventManager.updateEventBinder();
     if (options.legends) {
-      internalProps.legends = createLegend(options.legends, this);
-      this.scenegraph.tableGroup.setAttributes({
-        x: this.tableX,
-        y: this.tableY
-      });
+      internalProps.legends = [];
+      const createLegend = Factory.getFunction('createLegend') as CreateLegend;
+      if (Array.isArray(options.legends)) {
+        for (let i = 0; i < options.legends.length; i++) {
+          internalProps.legends.push(createLegend(options.legends[i], this));
+        }
+        this.scenegraph.tableGroup.setAttributes({
+          x: this.tableX,
+          y: this.tableY
+        });
+      } else {
+        internalProps.legends.push(createLegend(options.legends, this));
+        this.scenegraph.tableGroup.setAttributes({
+          x: this.tableX,
+          y: this.tableY
+        });
+      }
     }
     // if (options.title) {
     //   internalProps.title = new Title(options.title, this);
@@ -2077,13 +2495,16 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     // }
     internalProps.tooltip = Object.assign(
       {
+        parentElement: this.getElement(),
         renderMode: 'html',
         isShowOverflowTextTooltip: false,
-        confine: true
+        confine: true,
+        position: Placement.bottom
       },
       options.tooltip
     );
     if (internalProps.tooltip.renderMode === 'html' && !internalProps.tooltipHandler) {
+      const TooltipHandler = Factory.getComponent('tooltipHandler') as ITooltipHandler;
       internalProps.tooltipHandler = new TooltipHandler(this, internalProps.tooltip.confine);
     }
 
@@ -2093,19 +2514,39 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
       },
       options.menu
     );
+
+    Array.isArray(options.menu?.dropDownMenuHighlight) &&
+      this.setDropDownMenuHighlight(options.menu?.dropDownMenuHighlight);
+
+    // 全局下拉菜单
+    (Array.isArray(options.menu?.defaultHeaderMenuItems) ||
+      typeof options.menu?.defaultHeaderMenuItems === 'function') &&
+      (this.globalDropDownMenu = options.menu.defaultHeaderMenuItems);
+
     if (internalProps.menu.renderMode === 'html' && !internalProps.menuHandler) {
+      const MenuHandler = Factory.getComponent('menuHandler') as IMenuHandler;
       internalProps.menuHandler = new MenuHandler(this);
     }
     this.clearCellStyleCache();
     this.clearColWidthCache();
     this.clearRowHeightCache();
+
+    internalProps.customMergeCell = getCustomMergeCellFunc(options.customMergeCell);
+
+    this.customCellStylePlugin?.updateCustomCell(
+      options.customCellStyle ?? [],
+      options.customCellStyleArrangement ?? []
+    );
+    this._adjustCanvasSizeByOption();
   }
   /**
    * 重新创建场景树并重新渲染
    */
   renderWithRecreateCells() {
+    this.internalProps.stick.changedCells.clear();
     const oldHoverState = { col: this.stateManager.hover.cellPos.col, row: this.stateManager.hover.cellPos.row };
     this.refreshHeader();
+    this.internalProps.useOneRowHeightFillAll = false;
     this.scenegraph.clearCells();
     this.clearCellStyleCache();
     this.scenegraph.createSceneGraph();
@@ -2134,7 +2575,11 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
    */
   getBottomFrozenRowsHeight(): number {
     if (this.bottomFrozenRowCount > 0) {
-      const height = this.getRowsHeight(this.rowCount - this.bottomFrozenRowCount, this.rowCount - 1);
+      // const height = this.getRowsHeight(this.rowCount - this.bottomFrozenRowCount, this.rowCount - 1);//替换成下面遍历获取高度，鉴于冻结数量有限。否则这里在初始化的时候ClipBodyGroupBeforeRenderContribution.drawShap就先走了这个计算，导致初始化时间加长，而后续计算行高列宽会清除这个计算结果，浪费了性能
+      let height = 0;
+      for (let row = this.rowCount - this.bottomFrozenRowCount; row <= this.rowCount - 1; row++) {
+        height += this.getRowHeight(row);
+      }
       return height;
     }
     return 0;
@@ -2145,7 +2590,11 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
    */
   getRightFrozenColsWidth(): number {
     if (this.rightFrozenColCount > 0) {
-      const width = this.getColsWidth(this.colCount - this.rightFrozenColCount, this.colCount - 1);
+      // const width = this.getColsWidth(this.colCount - this.rightFrozenColCount, this.colCount - 1); // 同getBottomFrozenRowsHeight的原因
+      let width = 0;
+      for (let col = this.colCount - this.rightFrozenColCount; col <= this.colCount - 1; col++) {
+        width += this.getColWidth(col);
+      }
       return width;
     }
     return 0;
@@ -2202,9 +2651,17 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     const originHeight = this.canvas.offsetHeight || currentHeight;
     const heightRatio = currentHeight / originHeight;
 
-    const x = (clientX - rect.left) / widthRatio + (isAddScroll ? table.scrollLeft : 0);
-    const y = (clientY - rect.top) / heightRatio + (isAddScroll ? table.scrollTop : 0);
-    return { x, y, inTable };
+    const x =
+      (clientX - rect.left) / widthRatio + (isAddScroll ? table.scrollLeft : 0) - (this.options.viewBox?.x1 ?? 0);
+    const y =
+      (clientY - rect.top) / heightRatio + (isAddScroll ? table.scrollTop : 0) - (this.options.viewBox?.y1 ?? 0);
+    const point = { x, y, inTable };
+
+    if (this.internalProps.modifiedViewBoxTransform && this.scenegraph.stage.window.getViewBoxTransform()) {
+      const transform = this.scenegraph.stage.window.getViewBoxTransform();
+      transform.transformPoint(point, point);
+    }
+    return point;
   }
   getTheme() {
     return this.internalProps.theme;
@@ -2216,68 +2673,8 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
    * @param absoluteX
    * @returns
    */
-  getTargetColAt(absoluteX: number): { col: number; left: number; right: number; width: number } | null {
-    if (absoluteX === 0) {
-      return { left: 0, col: 0, right: 0, width: 0 };
-    }
-    const findBefore = (
-      startCol: number,
-      startRight: number
-    ): {
-      left: number;
-      col: number;
-      right: number;
-      width: number;
-    } | null => {
-      let right = startRight;
-      for (let col = startCol; col >= 0; col--) {
-        const width = this.getColWidth(col);
-        const left = right - width;
-        if (Math.round(left) <= Math.round(absoluteX) && Math.round(absoluteX) < Math.round(right)) {
-          return {
-            left,
-            col,
-            right,
-            width
-          };
-        }
-        right = left;
-      }
-      return null;
-    };
-    const findAfter = (
-      startCol: number,
-      startRight: number
-    ): {
-      left: number;
-      col: number;
-      right: number;
-      width: number;
-    } | null => {
-      let left = startRight - this.getColWidth(startCol);
-      const { colCount } = this.internalProps;
-      for (let col = startCol; col < colCount; col++) {
-        const width = this.getColWidth(col);
-        const right = left + width;
-        if (Math.round(left) <= Math.round(absoluteX) && Math.round(absoluteX) < Math.round(right)) {
-          return {
-            left,
-            col,
-            right,
-            width
-          };
-        }
-        left = right;
-      }
-      return null;
-    };
-    //计算这个位置处是第几行
-    const candCol = this.computeTargetColByX(absoluteX);
-    const right = this.getColsWidth(0, candCol);
-    if (absoluteX >= right) {
-      return findAfter(candCol, right);
-    }
-    return findBefore(candCol, right);
+  getTargetColAt(absoluteX: number): ColumnInfo | null {
+    return getTargetColAt(absoluteX, this);
   }
   /**
    * 根据y获取该位置所处行值
@@ -2285,129 +2682,34 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
    * @param absoluteX
    * @returns
    */
-  getTargetRowAt(absoluteY: number): { row: number; top: number; bottom: number; height: number } | null {
-    if (absoluteY === 0) {
-      return { top: 0, row: 0, bottom: 0, height: 0 };
+  getTargetRowAt(absoluteY: number): RowInfo | null {
+    const targetRow = getTargetRowAt(absoluteY, this);
+    if (targetRow) {
+      targetRow.row = Math.min(targetRow.row, this.rowCount - 1);
     }
-
-    const findBefore = (
-      startRow: number,
-      startBottom: number
-    ): {
-      top: number;
-      row: number;
-      bottom: number;
-      height: number;
-    } | null => {
-      let bottom = startBottom;
-      for (let row = startRow; row >= 0; row--) {
-        const height = this.getRowHeight(row);
-        const top = bottom - height;
-        if (Math.round(top) <= Math.round(absoluteY) && Math.round(absoluteY) < Math.round(bottom)) {
-          return {
-            top,
-            row,
-            bottom,
-            height
-          };
-        }
-        bottom = top;
-      }
-      return null;
-    };
-    const findAfter = (
-      startRow: number,
-      startBottom: number
-    ): {
-      top: number;
-      row: number;
-      bottom: number;
-      height: number;
-    } | null => {
-      let top = startBottom - this.getRowHeight(startRow);
-      const { rowCount } = this.internalProps;
-      for (let row = startRow; row < rowCount; row++) {
-        const height = this.getRowHeight(row);
-        const bottom = top + height;
-        if (Math.round(top) <= Math.round(absoluteY) && Math.round(absoluteY) < Math.round(bottom)) {
-          return {
-            top,
-            row,
-            bottom,
-            height
-          };
-        }
-        top = bottom;
-      }
-      return null;
-    };
-    // const candRow = Math.min(
-    //   Math.ceil(absoluteY / this.internalProps.defaultRowHeight),
-    //   this.rowCount - 1
-    // );
-    //计算这个位置处是第几行
-    const candRow = this.computeTargetRowByY(absoluteY);
-    const bottom = this.getRowsHeight(0, candRow);
-    if (absoluteY >= bottom) {
-      return findAfter(candRow, bottom);
-    }
-    return findBefore(candRow, bottom);
+    return targetRow;
   }
+
   /**
-   * 根据y值（包括了scroll的）计算所在行
-   * @param this
-   * @param absoluteY 左边y值，包含了scroll滚动距离
+   * 根据x获取该位置所处列值
+   * @param table
+   * @param absoluteX
    * @returns
    */
-  private computeTargetRowByY(absoluteY: number): number {
-    let defaultRowHeight = this.internalProps.defaultRowHeight;
-
-    //使用二分法计算出row
-    if (this._rowRangeHeightsMap.get(`$0$${this.rowCount - 1}`)) {
-      defaultRowHeight = this._rowRangeHeightsMap.get(`$0$${this.rowCount - 1}`) / this.rowCount;
-      // let startRow = 0;
-      // let endRow = this.rowCount - 1;
-      // while (endRow - startRow > 1) {
-      //   const midRow = Math.floor((startRow + endRow) / 2);
-      //   if (absoluteY < this._rowRangeHeightsMap.get(`$0$${midRow}`)) {
-      //     endRow = midRow;
-      //   } else if (absoluteY > this._rowRangeHeightsMap.get(`$0$${midRow}`)) {
-      //     startRow = midRow;
-      //   } else {
-      //     return midRow;
-      //   }
-      // }
-      // return endRow;
-    }
-    //否则使用defaultRowHeight大约计算一个row
-    return Math.min(Math.ceil(absoluteY / defaultRowHeight), this.rowCount - 1);
+  getTargetColAtConsiderRightFrozen(absoluteX: number, isConsider: boolean): ColumnInfo | null {
+    return getTargetColAtConsiderRightFrozen(absoluteX, isConsider, this);
   }
+
   /**
-   * 根据x值（包括了scroll的）计算所在列 主要借助colRangeWidthsMap缓存来提高计算效率
-   * @param this
-   * @param absoluteX 左边x值，包含了scroll滚动距离
+   * 根据y获取该位置所处行值
+   * @param table
+   * @param absoluteX
    * @returns
    */
-  private computeTargetColByX(absoluteX: number): number {
-    //使用二分法计算出col
-    if (this._colRangeWidthsMap.get(`$0$${this.colCount - 1}`)) {
-      let startCol = 0;
-      let endCol = this.colCount - 1;
-      while (endCol - startCol > 1) {
-        const midCol = Math.floor((startCol + endCol) / 2);
-        if (absoluteX < this._colRangeWidthsMap.get(`$0$${midCol}`)) {
-          endCol = midCol;
-        } else if (absoluteX > this._colRangeWidthsMap.get(`$0$${midCol}`)) {
-          startCol = midCol;
-        } else {
-          return midCol;
-        }
-      }
-      return endCol;
-    }
-    //否则使用defaultColWidth大约计算一个col
-    return Math.min(Math.ceil(absoluteX / this.internalProps.defaultColWidth), this.colCount - 1);
+  getTargetRowAtConsiderBottomFrozen(absoluteY: number, isConsider: boolean): RowInfo | null {
+    return getTargetRowAtConsiderBottomFrozen(absoluteY, isConsider, this);
   }
+
   /**
    * 清除选中单元格
    */
@@ -2418,10 +2720,30 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
    * 选中单元格  和鼠标选中单元格效果一致
    * @param col
    * @param row
+   * @param isShift 是否按住 shift 键
+   * @param isCtrl 是否按住 ctrl 键
+   * @param makeSelectCellVisible 是否让选中的单元格可见
+   * @param skipBodyMerge 是否忽略合并单元格，默认 false针对合并单元自动扩大选取范围
    */
-  selectCell(col: number, row: number) {
-    this.stateManager.updateSelectPos(col, row);
-    this.stateManager.endSelectCells();
+  selectCell(
+    col: number,
+    row: number,
+    isShift?: boolean,
+    isCtrl?: boolean,
+    makeSelectCellVisible?: boolean,
+    skipBodyMerge: boolean = false
+  ) {
+    const isHasSelected = !!this.stateManager.select.ranges?.length;
+    this.stateManager.updateSelectPos(
+      col,
+      row,
+      isShift,
+      isCtrl,
+      false,
+      makeSelectCellVisible ?? this.options.select?.makeSelectCellVisible ?? true,
+      skipBodyMerge
+    );
+    this.stateManager.endSelectCells(true, isHasSelected);
   }
   /**
    * 选中单元格区域，可设置多个区域同时选中
@@ -2431,13 +2753,37 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     const { scrollLeft, scrollTop } = this;
     cellRanges.forEach((cellRange: CellRange, index: number) => {
       if (cellRange.start.col === cellRange.end.col && cellRange.start.row === cellRange.end.row) {
-        this.stateManager.updateSelectPos(cellRange.start.col, cellRange.start.row, false, index >= 1);
+        this.stateManager.updateSelectPos(
+          cellRange.start.col,
+          cellRange.start.row,
+          false,
+          index >= 1,
+          false,
+          this.options.select?.makeSelectCellVisible ?? true,
+          true
+        );
       } else {
-        this.stateManager.updateSelectPos(cellRange.start.col, cellRange.start.row, false, index >= 1);
+        this.stateManager.updateSelectPos(
+          cellRange.start.col,
+          cellRange.start.row,
+          false,
+          index >= 1,
+          false,
+          this.options.select?.makeSelectCellVisible ?? true,
+          true
+        );
         this.stateManager.updateInteractionState(InteractionState.grabing);
-        this.stateManager.updateSelectPos(cellRange.end.col, cellRange.end.row, false, index >= 1);
+        this.stateManager.updateSelectPos(
+          cellRange.end.col,
+          cellRange.end.row,
+          false,
+          index >= 1,
+          false,
+          this.options.select?.makeSelectCellVisible ?? true,
+          true
+        );
       }
-      this.stateManager.endSelectCells(false);
+      this.stateManager.endSelectCells(false, false);
       this.stateManager.updateInteractionState(InteractionState.default);
     });
     // 选择后 会自动滚动到所选区域最后一行一列的位置 这里再设置回滚动前位置
@@ -2453,15 +2799,12 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     field: FieldDef,
     fieldKey?: FieldKeyDef
   ): ((v1: any, v2: any, order: string) => 0 | 1 | -1) | undefined;
-  abstract setRecords(
-    records: Array<any>,
-    option?: { restoreHierarchyState: boolean; sort?: SortState | SortState[] }
-  ): void;
+  abstract setRecords(records: Array<any>, option?: { sortState?: SortState | SortState[] }): void;
   abstract refreshHeader(): void;
   abstract refreshRowColCount(): void;
   abstract getHierarchyState(col: number, row: number): HierarchyState | null;
-  abstract toggleHierarchyState(col: number, row: number): void;
-  abstract _hasHierarchyTreeHeader(): boolean;
+  abstract toggleHierarchyState(col: number, row: number, recalculateColWidths?: boolean): void;
+
   abstract getMenuInfo(col: number, row: number, type: string): DropDownMenuEventInfo;
   abstract _moveHeaderPosition(
     source: CellAddress,
@@ -2478,7 +2821,7 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
   abstract getRecordShowIndexByCell(col: number, row: number): number;
   abstract getCellOriginRecord(col: number, row: number): MaybePromiseOrUndefined;
   abstract getCellRawRecord(col: number, row: number): MaybePromiseOrUndefined;
-  abstract getCellValue(col: number, row: number): FieldData;
+  abstract getCellValue(col: number, row: number, skipCustomMerge?: boolean): FieldData;
   abstract getCellOriginValue(col: number, row: number): FieldData;
   abstract getCellRawValue(col: number, row: number): FieldData;
 
@@ -2521,13 +2864,13 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
   /**
    * Get the data source.
    */
-  get dataSource(): DataSource | CachedDataSource {
+  get dataSource(): CachedDataSource | DataSource {
     return this.internalProps.dataSource;
   }
   /**
    * Set the data source from given
    */
-  set dataSource(dataSource: DataSource | CachedDataSource) {
+  set dataSource(dataSource: CachedDataSource | DataSource) {
     // 清空单元格内容
     this.scenegraph.clearCells();
     _setDataSource(this, dataSource);
@@ -2549,13 +2892,25 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     this.internalProps.autoWrapText = autoWrapText;
     this.options.autoWrapText = autoWrapText;
   }
+  /**
+   * Get the enableLineBreak.
+   */
+  get enableLineBreak(): boolean {
+    return this.internalProps.enableLineBreak;
+  }
+  /**
+   * Set the enableLineBreak
+   */
+  set enableLineBreak(enableLineBreak: boolean) {
+    this.internalProps.enableLineBreak = enableLineBreak;
+    this.options.enableLineBreak = enableLineBreak;
+  }
   updateAutoWrapText(autoWrapText: boolean) {
     if (this.internalProps.autoWrapText === autoWrapText) {
       return;
     }
     this.internalProps.autoWrapText = autoWrapText;
     this.options.autoWrapText = autoWrapText;
-    // if (this.heightMode === 'autoHeight' || this.heightMode === 'adaptive') {
     this.scenegraph.clearCells();
     this.clearCellStyleCache();
     this.scenegraph.createSceneGraph();
@@ -2573,6 +2928,7 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     this.internalProps.theme = themes.of(theme ?? themes.DEFAULT);
     this.internalProps.theme.isPivot = this.isPivotTable();
     this.options.theme = theme;
+    setIconColor(this.internalProps.theme.functionalIconsStyle);
   }
   /**
    * 设置主题
@@ -2581,6 +2937,7 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     const oldHoverState = { col: this.stateManager.hover.cellPos.col, row: this.stateManager.hover.cellPos.row };
     this.internalProps.theme = themes.of(theme ?? themes.DEFAULT);
     this.internalProps.theme.isPivot = this.isPivotTable();
+    setIconColor(this.internalProps.theme.functionalIconsStyle);
     this.options.theme = theme;
     this.scenegraph.updateComponent();
     this.scenegraph.updateStageBackground();
@@ -2605,21 +2962,23 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
    * @param  {number} row row index.
    * @return {ColumnDefine} The column define object.
    */
-  getBodyColumnDefine(col: number, row: number): ColumnDefine {
+  getBodyColumnDefine(col: number, row: number): ColumnDefine | IRowSeriesNumber | ColumnSeriesNumber {
     // TODO: 暂时修复透视表报错
     const body = this.internalProps.layoutMap.getBody(col, row);
     return body?.define;
   }
 
   getBodyColumnType(col: number, row: number): ColumnTypeOption {
-    const cellType = this.internalProps.layoutMap.getBody(col, row).cellType;
+    const cellType = this.internalProps.layoutMap.getBody(col, row)?.cellType ?? 'text';
     return getProp('cellType', { cellType }, col, row, this);
   }
 
   getCellType(col: number, row: number): ColumnTypeOption {
     let cellType;
-    if (this.isHeader(col, row)) {
-      cellType = this.internalProps.layoutMap.getHeader(col, row).headerType;
+    if (this.isSeriesNumberInHeader(col, row)) {
+      return (this.internalProps.layoutMap as SimpleHeaderLayoutMap).getSeriesNumberHeader(col, row).cellType;
+    } else if (this.isHeader(col, row)) {
+      cellType = (this.internalProps.layoutMap.getHeader(col, row) as HeaderData).headerType;
     } else {
       cellType = this.internalProps.layoutMap.getBody(col, row).cellType;
     }
@@ -2640,7 +2999,7 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
    * @param  {number} row row index.
    * @return {ColumnDefine} The column define object.
    */
-  getHeaderDefine(col: number, row: number): ColumnDefine {
+  getHeaderDefine(col: number, row: number): ColumnDefine | IRowSeriesNumber | ColumnSeriesNumber {
     const hd = this.internalProps.layoutMap.getHeader(col, row);
     return hd?.define;
   }
@@ -2666,11 +3025,11 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
    * @param  {number} col The column index.
    * @return {*} The array of header define object.
    */
-  getHeadersDefine(col: number, row: number): ColumnDefine[] {
+  getHeadersDefine(col: number, row: number): (ColumnDefine | IRowSeriesNumber | ColumnSeriesNumber)[] {
     const headers = [];
     while (true) {
-      const header = this.getHeaderDefine(col, row);
-      if (header && (header.field || header.columns)) {
+      const header = this.getHeaderDefine(col, row) as ColumnDefine;
+      if (header && (header.field || (header as ColumnDefine).columns)) {
         headers.push(header);
       } else {
         break;
@@ -2681,10 +3040,10 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
 
     return headers;
   }
-  _getHeaderLayoutMap(col: number, row: number): HeaderData {
+  _getHeaderLayoutMap(col: number, row: number): HeaderData | SeriesNumberColumnData {
     return this.internalProps.layoutMap.getHeader(col, row);
   }
-  _getBodyLayoutMap(col: number, row: number): ColumnData | IndicatorData {
+  _getBodyLayoutMap(col: number, row: number): ColumnData | IndicatorData | SeriesNumberColumnData {
     return this.internalProps.layoutMap.getBody(col, row);
   }
   /** 获取绘制画布的canvas上下文 */
@@ -2701,7 +3060,7 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     if (this.internalProps.layoutMap.isHeader(col, row)) {
       return undefined;
     }
-    return this.internalProps.dataSource?.get(this.getRecordShowIndexByCell(col, row));
+    return this.getCellOriginRecord(col, row);
   }
   /** @deprecated 请使用getRecordByCell */
   getRecordByRowCol(col: number, row: number) {
@@ -2736,7 +3095,11 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
   getCellRange(col: number, row: number): CellRange {
     if (this.internalProps.customMergeCell) {
       const customMerge = this.internalProps.customMergeCell(col, row, this);
-      if (customMerge && customMerge.range && customMerge.text) {
+      if (
+        customMerge &&
+        customMerge.range &&
+        (isValid(customMerge.text) || customMerge.customLayout || customMerge.customRender)
+      ) {
         return customMerge.range;
       }
     }
@@ -2750,7 +3113,11 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
   getCustomMerge(col: number, row: number) {
     if (this.internalProps.customMergeCell) {
       const customMerge = this.internalProps.customMergeCell(col, row, this);
-      if (customMerge && customMerge.range && (customMerge.text || customMerge.customLayout || this.customRender)) {
+      if (
+        customMerge &&
+        customMerge.range &&
+        (isValid(customMerge.text) || customMerge.customLayout || this.customRender)
+      ) {
         if (customMerge.style) {
           const styleClass = this.internalProps.bodyHelper.getStyleClass('text');
           const style = customMerge.style;
@@ -2806,7 +3173,7 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
   getHeaderDescription(col: number, row: number): string | undefined {
     const field = this._getHeaderLayoutMap(col, row);
     const fieldDef = field?.define;
-    const description = fieldDef?.description ?? field?.description;
+    const description = (fieldDef as ColumnDefine)?.description ?? (field as HeaderData)?.description;
     if (typeof description === 'function') {
       const arg: CellInfo = {
         col,
@@ -2825,7 +3192,20 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
   _dropDownMenuIsHighlight(colNow: number, rowNow: number, index: number): boolean {
     return this.stateManager.dropDownMenuIsHighlight(colNow, rowNow, index);
   }
-
+  /** 判断单元格是否属于序号body部分 */
+  isSeriesNumberInBody(col: number, row: number): boolean {
+    return (
+      this.internalProps.layoutMap &&
+      (this.internalProps.layoutMap as SimpleHeaderLayoutMap).isSeriesNumberInBody(col, row)
+    );
+  }
+  /** 判断单元格是否属于序号表头部分 */
+  isSeriesNumberInHeader(col: number, row: number): boolean {
+    return (
+      this.internalProps.layoutMap &&
+      (this.internalProps.layoutMap as SimpleHeaderLayoutMap).isSeriesNumberInHeader(col, row)
+    );
+  }
   /** 判断单元格是否属于表头部分 */
   isHeader(col: number, row: number): boolean {
     return this.internalProps.layoutMap && this.internalProps.layoutMap.isHeader(col, row);
@@ -2849,7 +3229,7 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
    * @returns
    */
   isFrozenColumn(col: number, row?: number): boolean {
-    return this.internalProps.layoutMap?.isFrozenColumn(col, row);
+    return this.isLeftFrozenColumn(col, row) || this.isRightFrozenColumn(col, row);
   }
   /**
    * 是否属于冻结左侧列
@@ -2877,7 +3257,7 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
    * @returns
    */
   isFrozenRow(col: number, row?: number): boolean {
-    return this.internalProps.layoutMap?.isFrozenRow(col, row);
+    return this.isTopFrozenRow(col, row) || this.isBottomFrozenRow(col, row);
   }
   /**
    * 是否属于冻结顶部行
@@ -2920,7 +3300,7 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
   }
   /** @private */
   _hasField(field: FieldDef, col: number, row: number): boolean {
-    if (field == null) {
+    if (field === null) {
       return false;
     }
     const table = this;
@@ -2937,226 +3317,12 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
    * @returns
    */
   _getCellStyle(col: number, row: number): FullExtendStyle {
-    const customCellStyle = this.customCellStylePlugin.getCustomCellStyle(col, row);
-    const { layoutMap } = this.internalProps;
-    const isHeader = layoutMap.isHeader(col, row);
-    if (isHeader) {
-      // const cacheKey = `${col}-${row}`;
-      let cacheKey;
-      if (this.isPivotTable() && !this.isBottomFrozenRow(row) && !this.isRightFrozenColumn(col)) {
-        // use dimensionKey&indicatorKey to cache style object in pivot table
-        const define = this.getHeaderDefine(col, row) as any;
-        cacheKey = define?.dimensionKey
-          ? `dim-${define.dimensionKey}`
-          : define?.indicatorKey
-          ? `ind-${define.indicatorKey}`
-          : `${col}-${row}`;
-      } else {
-        cacheKey = `${col}-${row}`;
-      }
-      let cacheStyle = this.headerStyleCache.get(cacheKey);
-      if (cacheStyle) {
-        if (customCellStyle) {
-          return mergeStyle(cacheStyle, customCellStyle);
-        }
-        return cacheStyle;
-      }
-      const hd = layoutMap.getHeader(col, row);
-
-      let paddingForAxis;
-      if (
-        this.isPivotChart() &&
-        isTopOrBottomAxis(col, row, layoutMap as PivotHeaderLayoutMap) &&
-        layoutMap.isAxisCell(col, row)
-      ) {
-        // get chart padding for axis cell
-        const chartColumn = layoutMap.getBody(col, this.rowHeaderLevelCount);
-        const padding = (chartColumn.style as any)?.padding ?? this.theme.bodyStyle.padding;
-        paddingForAxis = padding;
-      } else if (
-        this.isPivotChart() &&
-        isLeftOrRightAxis(col, row, layoutMap as PivotHeaderLayoutMap) &&
-        layoutMap.isAxisCell(col, row)
-      ) {
-        // get chart padding for axis cell
-        const chartColumn = layoutMap.getBody(this.columnHeaderLevelCount, row);
-        const padding = (chartColumn.style as any)?.padding ?? this.theme.bodyStyle.padding;
-        paddingForAxis = padding;
-      }
-
-      if (
-        (!hd || hd.isEmpty) &&
-        (layoutMap.isLeftBottomCorner(col, row) ||
-          layoutMap.isRightBottomCorner(col, row) ||
-          layoutMap.isCornerHeader(col, row) ||
-          layoutMap.isRightTopCorner(col, row))
-      ) {
-        return EMPTY_STYLE;
-      }
-
-      const styleClass = this.internalProps.headerHelper.getStyleClass(hd?.headerType || 'text');
-      if (layoutMap.isBottomFrozenRow(col, row) && this.theme.bottomFrozenStyle) {
-        cacheStyle = <FullExtendStyle>headerStyleContents.of(
-          paddingForAxis ? { padding: paddingForAxis } : {},
-          this.theme.bottomFrozenStyle,
-          {
-            col,
-            row,
-            table: this as BaseTableAPI,
-            value: this.getCellValue(col, row),
-            dataValue: this.getCellOriginValue(col, row),
-            cellHeaderPaths: this.getCellHeaderPaths(col, row)
-          },
-          styleClass,
-          this.options.autoWrapText,
-          this.theme
-        );
-      } else if (layoutMap.isRightFrozenColumn(col, row) && this.theme.rightFrozenStyle) {
-        cacheStyle = <FullExtendStyle>headerStyleContents.of(
-          paddingForAxis ? { padding: paddingForAxis } : {},
-          this.theme.rightFrozenStyle,
-          {
-            col,
-            row,
-            table: this as BaseTableAPI,
-            value: this.getCellValue(col, row),
-            dataValue: this.getCellOriginValue(col, row),
-            cellHeaderPaths: this.getCellHeaderPaths(col, row)
-          },
-          styleClass,
-          this.options.autoWrapText,
-          this.theme
-        );
-      } else {
-        // let defaultStyle;
-        // if (layoutMap.isColumnHeader(col, row) || layoutMap.isBottomFrozenRow(col, row)) {
-        //   defaultStyle = this.theme.headerStyle;
-        // } else if (this.internalProps.transpose && layoutMap.isRowHeader(col, row)) {
-        //   defaultStyle = this.theme.headerStyle;
-        // } else if (layoutMap.isRowHeader(col, row) || layoutMap.isRightFrozenColumn(col, row)) {
-        //   defaultStyle = this.theme.rowHeaderStyle;
-        // } else {
-        //   defaultStyle = this.theme.cornerHeaderStyle;
-        // }
-        // const styleClass = hd.headerType.StyleClass; //BaseHeader文件
-        // const { style } = hd;
-        const style = hd?.style || {};
-        if (paddingForAxis) {
-          (style as any).padding = paddingForAxis;
-        }
-        cacheStyle = <FullExtendStyle>headerStyleContents.of(
-          style,
-          // defaultStyle,
-          layoutMap.isColumnHeader(col, row) || layoutMap.isBottomFrozenRow(col, row)
-            ? this.theme.headerStyle
-            : layoutMap.isRowHeader(col, row) || layoutMap.isRightFrozenColumn(col, row)
-            ? this.theme.rowHeaderStyle
-            : this.theme.cornerHeaderStyle,
-          {
-            col,
-            row,
-            table: this as BaseTableAPI,
-            value: this.getCellValue(col, row),
-            dataValue: this.getCellOriginValue(col, row),
-            cellHeaderPaths: this.getCellHeaderPaths(col, row)
-          },
-          styleClass,
-          this.options.autoWrapText,
-          this.theme
-        );
-      }
-      this.headerStyleCache.set(cacheKey, cacheStyle);
-      if (customCellStyle) {
-        return mergeStyle(cacheStyle, customCellStyle);
-      }
-      return cacheStyle;
-    }
-
-    let bgColorFunc: ColorPropertyDefine;
-    // 判断是否有mapping  遍历dataset中mappingRules
-    if ((this.internalProps as PivotTableProtected)?.dataConfig?.mappingRules && !this.isHeader(col, row)) {
-      (this.internalProps as PivotTableProtected)?.dataConfig?.mappingRules?.forEach(
-        (mappingRule: MappingRule, i: number) => {
-          if (
-            mappingRule.bgColor &&
-            (this.internalProps.layoutMap as PivotHeaderLayoutMap).getIndicatorKey(col, row) ===
-              mappingRule.bgColor.indicatorKey
-          ) {
-            bgColorFunc = mappingRule.bgColor.mapping;
-          }
-        }
-      );
-      // // 判断是否有mapping  遍历dataset中mappingRules 但这里还需要根据fieldName来判断
-      // if (bgColorFunc && typeof bgColorFunc === 'function') {
-      //   const cellValue = this.getCellOriginValue(col, row);
-      //   bgColor = bgColorFunc(this, cellValue);
-      // }
-    }
-
-    let cacheKey;
-    const cellType = this.getCellType(col, row);
-    //如果是主体部分，获取相应的style
-    if (
-      (this.isListTable() && !(this as any).transpose) ||
-      (this.isPivotTable() && (this.internalProps.layoutMap as PivotHeaderLayoutMap).indicatorsAsCol)
-    ) {
-      cacheKey = col + cellType;
-    } else {
-      cacheKey = row + cellType;
-    }
-    let cacheStyle;
-    if (layoutMap.isBottomFrozenRow(row)) {
-      cacheStyle = this.bodyBottomStyleCache.get(cacheKey);
-    } else {
-      cacheStyle = this.bodyStyleCache.get(cacheKey);
-    }
-    if (cacheStyle) {
-      if (customCellStyle) {
-        return mergeStyle(cacheStyle, customCellStyle);
-      }
-      return cacheStyle;
-    }
-    const column = layoutMap.getBody(col, row);
-    // const styleClass = column?.cellType?.StyleClass; //BaseColumn文件
-    const styleClass = this.internalProps.bodyHelper.getStyleClass(this.getCellType(col, row));
-    const style = column?.style;
-    cacheStyle = <FullExtendStyle>columnStyleContents.of(
-      style,
-      layoutMap.isBottomFrozenRow(row) && this.theme.bottomFrozenStyle
-        ? this.theme.bottomFrozenStyle
-        : layoutMap.isRightFrozenColumn(col) && this.theme.rightFrozenStyle
-        ? this.theme.rightFrozenStyle
-        : this.theme.bodyStyle,
-      {
-        col,
-        row,
-        table: this,
-        value: this.getCellValue(col, row),
-        dataValue: this.getCellOriginValue(col, row),
-        cellHeaderPaths: this.getCellHeaderPaths(col, row)
-      },
-      styleClass,
-      this.options.autoWrapText,
-      this.theme
-    );
-    if (bgColorFunc) {
-      cacheStyle = mergeStyle(cacheStyle as any, { bgColor: bgColorFunc });
-    }
-    if (!isFunction(style)) {
-      if (layoutMap.isBottomFrozenRow(row)) {
-        this.bodyBottomStyleCache.set(cacheKey, cacheStyle);
-      } else {
-        this.bodyStyleCache.set(cacheKey, cacheStyle);
-      }
-    }
-    if (customCellStyle) {
-      return mergeStyle(cacheStyle as any, customCellStyle);
-    }
-    return cacheStyle;
+    return getCellStyle(col, row, this);
   }
   clearCellStyleCache() {
     this.headerStyleCache.clear();
     this.bodyStyleCache.clear();
+    this.bodyMergeTitleCache.clear();
     this.bodyBottomStyleCache.clear();
 
     // this._newRowHeightsMap.clear();
@@ -3178,6 +3344,7 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
   /**
    * 该列是否可调整列宽
    * @param col
+   * @param row
    * @returns
    */
   _canResizeColumn(col: number, row: number): boolean {
@@ -3213,37 +3380,75 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     }
     return limit.max !== limit.min;
   }
+
+  /**
+   * 该列是否可调整列宽
+   * @param col
+   * @param row
+   * @returns
+   */
+  _canResizeRow(col: number, row: number): boolean {
+    if (!(col >= 0 && row >= 0)) {
+      return false;
+    }
+    if (this.isCellRangeEqual(col, row, col, row + 1)) {
+      return false;
+    }
+
+    if (this.internalProps.rowResizeMode === 'none') {
+      return false;
+    } else if (this.internalProps.rowResizeMode === 'header') {
+      // 判断表头
+      if (!this.isHeader(col, row)) {
+        return false;
+      }
+    } else if (this.internalProps.rowResizeMode === 'body') {
+      // 判断内容
+      if (this.isHeader(col, row)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   /**
    * 选中位置是否可拖拽调整位置
    * @param col
    * @returns
    */
   _canDragHeaderPosition(col: number, row: number): boolean {
-    if (this.isHeader(col, row) && this.stateManager.isSelected(col, row)) {
-      if (
-        this.internalProps.frozenColDragHeaderMode === 'disabled' &&
-        (this.isFrozenColumn(col) || this.isRightFrozenColumn(col))
-      ) {
+    if (
+      this.isHeader(col, row) &&
+      (this.stateManager.isSelected(col, row) ||
+        (this.options.select?.headerSelectMode === 'body' &&
+          checkCellInSelect(col, row, [
+            this.getCellRange(this.stateManager.select.cellPos.col, this.stateManager.select.cellPos.row)
+          ])) ||
+        isCellDisableSelect(this, col, row))
+    ) {
+      if (this.internalProps.frozenColDragHeaderMode === 'disabled' && this.isFrozenColumn(col)) {
         return false;
       }
-      const selectRange = this.stateManager.select.ranges[0];
-      //判断是否整行或者整列选中
-      if (this.isColumnHeader(col, row)) {
-        if (selectRange.end.row !== this.rowCount - 1) {
+      if (this.stateManager.isSelected(col, row)) {
+        const selectRange = this.stateManager.select.ranges[0];
+        //判断是否整行或者整列选中
+        if (this.isColumnHeader(col, row)) {
+          if (selectRange.end.row !== this.rowCount - 1) {
+            return false;
+          }
+        } else if (this.isRowHeader(col, row)) {
+          if (selectRange.end.col !== this.colCount - 1) {
+            return false;
+          }
+        } else {
           return false;
         }
-      } else if (this.isRowHeader(col, row)) {
-        if (selectRange.end.col !== this.colCount - 1) {
-          return false;
-        }
-      } else {
-        return false;
       }
       const define = this.getHeaderDefine(col, row);
       if (!define) {
         return false;
       }
-      if (define.dragHeader === undefined) {
+      if ((define as ColumnDefine).dragHeader === undefined) {
         if (this.internalProps.dragHeaderMode === 'all') {
           return true;
         } else if (this.internalProps.dragHeaderMode === 'column') {
@@ -3257,7 +3462,7 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
         }
         return false;
       }
-      return define.dragHeader;
+      return (define as ColumnDefine).dragHeader;
     }
     return false;
   }
@@ -3269,6 +3474,24 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     let icons;
     if (this.isHeader(col, row)) {
       icons = this.internalProps.headerHelper.getIcons(col, row);
+    } else if ((this.internalProps.layoutMap as SimpleHeaderLayoutMap).isSeriesNumber(col, row)) {
+      if (!(this.options as ListTableConstructorOptions).groupBy || !this.getCellRawRecord(col, row)?.vtableMerge) {
+        const dragOrder = (this.internalProps.layoutMap as SimpleHeaderLayoutMap).getSeriesNumberBody(col, row)?.define
+          ?.dragOrder;
+        if (dragOrder) {
+          icons = this.internalProps.rowSeriesNumberHelper.getIcons(col, row);
+        }
+      }
+      const cellValue = this.getCellValue(col, row);
+      const dataValue = this.getCellOriginValue(col, row);
+
+      const ctx = this.internalProps.context;
+      const cellIcon = this.internalProps.bodyHelper.getIcons(col, row, cellValue, dataValue, ctx);
+      if (icons?.length > 0) {
+        icons = icons.concat(cellIcon);
+      } else if (cellIcon?.length > 0) {
+        icons = cellIcon;
+      }
     } else {
       const cellValue = this.getCellValue(col, row);
       const dataValue = this.getCellOriginValue(col, row);
@@ -3316,6 +3539,9 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
         ? getProp('bgColor', actStyle, col, row, this)
         : (theme.group.fill as string),
       color: isBoolean(theme.text.fill) ? getProp('color', actStyle, col, row, this) : (theme.text.fill as string),
+      strokeColor: isBoolean(theme.text.stroke)
+        ? getProp('strokeColor', actStyle, col, row, this)
+        : (theme.text.stroke as string),
       fontFamily: theme.text.fontFamily,
       fontSize: theme.text.fontSize,
       fontWeight: theme.text.fontWeight,
@@ -3408,24 +3634,6 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
           .fill(0)
           .map((_, j) => this.getCellInfo(j + start.col, i + start.row))
       );
-  }
-  /**
-   * 滚动到具体某个单元格位置
-   * @param cellAddr 要滚动到的单元格位置
-   */
-  scrollToCell(cellAddr: { col?: number; row?: number }) {
-    const drawRange = this.getDrawRange();
-    if (isValid(cellAddr.col) && cellAddr.col >= this.frozenColCount) {
-      const frozenWidth = this.getFrozenColsWidth();
-      const left = this.getColsWidth(0, cellAddr.col - 1);
-      this.scrollLeft = Math.min(left - frozenWidth, this.getAllColsWidth() - drawRange.width);
-    }
-    if (isValid(cellAddr.row) && cellAddr.row >= this.frozenRowCount) {
-      const frozenHeight = this.getFrozenRowsHeight();
-      const top = this.getRowsHeight(0, cellAddr.row - 1);
-      this.scrollTop = Math.min(top - frozenHeight, this.getAllRowsHeight() - drawRange.height);
-    }
-    this.render();
   }
 
   /**获取选中区域的内容 作为复制内容 */
@@ -3532,6 +3740,10 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
           }
         }
       }
+
+      if (this.options?.formatCopyValue) {
+        copyValue = this.options.formatCopyValue(copyValue);
+      }
       return copyValue;
     }
     return '';
@@ -3616,9 +3828,21 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     }
     return cellInfoArray;
   }
+  getSelectedCellRanges(): CellRange[] {
+    const ranges = this.stateManager.select.ranges;
+    if (!ranges.length) {
+      return [];
+    }
+    return cloneDeep(ranges);
+  }
+
   /** 计算字体的宽度接口 */
   measureText(text: string, font: { fontSize: number; fontWeight: string | number; fontFamily: string }): ITextSize {
     return textMeasure.measureText(text, font);
+  }
+
+  measureTextBounds(attribute: ITextGraphicAttribute): AABBBounds {
+    return measureTextBounds(attribute) as AABBBounds;
   }
 
   /** 获取单元格上定义的自定义渲染配置 */
@@ -3626,10 +3850,10 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     let customRender;
     if (this.getCellLocation(col, row) !== 'body') {
       const define = this.getHeaderDefine(col, row);
-      customRender = define?.headerCustomRender;
+      customRender = (define as ColumnDefine)?.headerCustomRender;
     } else {
       const define = this.getBodyColumnDefine(col, row);
-      customRender = define?.customRender || this.customRender;
+      customRender = (define as ColumnDefine)?.customRender || this.customRender;
     }
     return customRender;
   }
@@ -3638,25 +3862,21 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     let customLayout;
     if (this.getCellLocation(col, row) !== 'body') {
       const define = this.getHeaderDefine(col, row);
-      customLayout = define?.headerCustomLayout;
+      customLayout = (define as ColumnDefine)?.headerCustomLayout;
     } else {
       const define = this.getBodyColumnDefine(col, row);
-      customLayout = define?.customLayout;
+      customLayout = (define as ColumnDefine)?.customLayout;
     }
     return customLayout;
   }
 
   hasAutoImageColumn() {
-    return (this.internalProps.layoutMap.columnObjects as ColumnData[]).find((column: ColumnData) => {
-      if (
-        (column.cellType === 'image' || typeof column.cellType === 'function') &&
-        (column.define as ImageColumnDefine).imageAutoSizing
-      ) {
-        return true;
-      }
-      return false;
-    });
+    if (this._hasAutoImageColumn === undefined) {
+      this._hasAutoImageColumn = hasAutoImageColumn(this);
+    }
+    return this._hasAutoImageColumn;
   }
+
   /** 获取当前hover单元格的图表实例。这个方法hover实时获取有点缺陷：鼠标hover到单元格上触发了 chart.ts中的activate方法 但此时this.stateManager.hover?.cellPos?.col还是-1 */
   _getActiveChartInstance() {
     // 根据hover的单元格位置 获取单元格实例 拿到chart图元
@@ -3681,13 +3901,76 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     if (col < this.frozenColCount && row < this.frozenRowCount) {
       return true;
     }
+    let colHeaderRangeRect;
+    if (this.frozenRowCount >= 1) {
+      colHeaderRangeRect = this.getCellRangeRelativeRect({
+        start: {
+          col: 0,
+          row: 0
+        },
+        end: {
+          col: this.colCount - 1,
+          row: this.frozenRowCount - 1
+        }
+      });
+    }
+    let rowHeaderRangeRect;
+    if (this.frozenColCount >= 1) {
+      rowHeaderRangeRect = this.getCellRangeRelativeRect({
+        start: {
+          col: 0,
+          row: 0
+        },
+        end: {
+          col: this.frozenColCount - 1,
+          row: this.rowCount - 1
+        }
+      });
+    }
+    let bottomFrozenRangeRect;
+    if (this.bottomFrozenRowCount >= 1) {
+      bottomFrozenRangeRect = this.getCellRangeRelativeRect({
+        start: {
+          col: 0,
+          row: this.rowCount - this.bottomFrozenRowCount
+        },
+        end: {
+          col: this.colCount - 1,
+          row: this.rowCount - 1
+        }
+      });
+    }
+    let rightFrozenRangeRect;
+    if (this.rightFrozenColCount >= 1) {
+      rightFrozenRangeRect = this.getCellRangeRelativeRect({
+        start: {
+          col: this.colCount - this.rightFrozenColCount,
+          row: 0
+        },
+        end: {
+          col: this.colCount - 1,
+          row: this.rowCount - 1
+        }
+      });
+    }
     if (
       rect.top >= drawRange.top &&
       rect.bottom <= drawRange.bottom &&
       rect.left >= drawRange.left &&
       rect.right <= drawRange.right
     ) {
-      return true;
+      // return true;
+      if (this.isFrozenCell(col, row)) {
+        return true;
+      } else if (
+        // body cell drawRange do not intersect colHeaderRangeRect&rowHeaderRangeRect
+        rect.top >= (colHeaderRangeRect?.bottom ?? rect.top) &&
+        rect.left >= (rowHeaderRangeRect?.right ?? rect.left) &&
+        rect.bottom <= (bottomFrozenRangeRect?.top ?? rect.bottom) &&
+        rect.right <= (rightFrozenRangeRect?.left ?? rect.right)
+      ) {
+        return true;
+      }
     }
     return false;
   }
@@ -3716,7 +3999,7 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
    * 导出某个单元格图片
    * @returns base64图片
    */
-  exportCellImg(col: number, row: number) {
+  exportCellImg(col: number, row: number, options?: { disableBackground?: boolean; disableBorder?: boolean }) {
     const isInView = this.cellIsInVisualView(col, row);
     const { scrollTop, scrollLeft } = this;
     if (!isInView) {
@@ -3730,14 +4013,39 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     }
     const { col: hoverCol, row: hoverRow } = this.stateManager.hover.cellPos;
     this.stateManager.updateHoverPos(-1, -1);
+    // hide scroll bar
+    this.scenegraph.component.hideVerticalScrollBar();
+    this.scenegraph.component.hideHorizontalScrollBar();
 
+    // hide border
+    this.scenegraph.tableGroup.border.setAttribute('visible', false);
+
+    // deal with options
+    let oldFill;
+    if (options?.disableBackground) {
+      const cellGroup = this.scenegraph.getCell(col, row);
+      oldFill = cellGroup.attribute.fill;
+      cellGroup.setAttribute('fill', 'transparent');
+    }
+    let oldStroke;
+    if (options?.disableBorder) {
+      const cellGroup = this.scenegraph.getCell(col, row);
+      oldStroke = cellGroup.attribute.stroke;
+      cellGroup.setAttribute('stroke', false);
+    }
+
+    this.scenegraph.renderSceneGraph();
+    let sizeOffset = 0;
+    if (this.theme.cellBorderClipDirection === 'bottom-right') {
+      sizeOffset = 1;
+    }
     const c = this.scenegraph.stage.toCanvas(
       false,
       new AABBBounds().set(
         cellRect.left + this.tableX + 1,
         cellRect.top + this.tableY + 1,
-        cellRect.right + this.tableX,
-        cellRect.bottom + this.tableY
+        cellRect.right + this.tableX - sizeOffset,
+        cellRect.bottom + this.tableY - sizeOffset
       )
     );
     if (!isInView) {
@@ -3746,11 +4054,26 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
     }
     // return c.toDataURL('image/jpeg', 0.5);
 
+    // restore border
+    this.scenegraph.tableGroup.border.setAttribute('visible', true);
+
+    // restore options
+    if (oldFill) {
+      const cellGroup = this.scenegraph.getCell(col, row);
+      cellGroup.setAttribute('fill', oldFill);
+    }
+    if (oldStroke) {
+      const cellGroup = this.scenegraph.getCell(col, row);
+      cellGroup.setAttribute('stroke', oldStroke);
+    }
+
     // restore hover&select style
     if (this.stateManager.select?.ranges?.length > 0) {
       restoreCellSelectBorder(this.scenegraph);
     }
     this.stateManager.updateHoverPos(hoverCol, hoverRow);
+
+    this.scenegraph.updateNextFrame();
 
     return c.toDataURL();
   }
@@ -3776,6 +4099,18 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
       start: { col: minCol, row: minRow },
       end: { col: maxCol, row: maxRow }
     });
+
+    // disable hover&select style
+    if (this.stateManager.select?.ranges?.length > 0) {
+      hideCellSelectBorder(this.scenegraph);
+    }
+    const { col: hoverCol, row: hoverRow } = this.stateManager.hover.cellPos;
+    this.stateManager.updateHoverPos(-1, -1);
+    // hide scroll bar
+    this.scenegraph.component.hideVerticalScrollBar();
+    this.scenegraph.component.hideHorizontalScrollBar();
+    this.scenegraph.renderSceneGraph();
+
     const c = this.scenegraph.stage.toCanvas(
       false,
       new AABBBounds().set(
@@ -3791,6 +4126,13 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
       this.setScrollTop(scrollTop);
       this.setScrollLeft(scrollLeft);
     }
+
+    // restore hover&select style
+    if (this.stateManager.select?.ranges?.length > 0) {
+      restoreCellSelectBorder(this.scenegraph);
+    }
+    this.stateManager.updateHoverPos(hoverCol, hoverRow);
+
     return base64Image;
   }
 
@@ -3887,12 +4229,166 @@ export abstract class BaseTable extends EventTarget implements BaseTableAPI {
       }
     }
   }
-
+  changeRecordOrder(source: number, target: number) {
+    //
+  }
+  hasCustomCellStyle(customStyleId: string): boolean {
+    return this.customCellStylePlugin?.hasCustomCellStyle(customStyleId);
+  }
   registerCustomCellStyle(customStyleId: string, customStyle: ColumnStyleOption | undefined | null) {
-    this.customCellStylePlugin.registerCustomCellStyle(customStyleId, customStyle);
+    this.customCellStylePlugin?.registerCustomCellStyle(customStyleId, customStyle);
   }
 
-  arrangeCustomCellStyle(cellPos: { col?: number; row?: number; range?: CellRange }, customStyleId: string) {
-    this.customCellStylePlugin.arrangeCustomCellStyle(cellPos, customStyleId);
+  arrangeCustomCellStyle(
+    cellPos: { col?: number; row?: number; range?: CellRange },
+    customStyleId: string,
+    forceFastUpdate?: boolean
+  ) {
+    this.customCellStylePlugin?.arrangeCustomCellStyle(cellPos, customStyleId, forceFastUpdate);
+  }
+  isSeriesNumber(col: number, row: number): boolean {
+    return this.internalProps.layoutMap.isSeriesNumber(col, row);
+  }
+  isHasSeriesNumber(): boolean {
+    return this.internalProps.layoutMap?.leftRowSeriesNumberColumnCount > 0;
+  }
+  get leftRowSeriesNumberCount(): number {
+    return this.internalProps.layoutMap?.leftRowSeriesNumberColumnCount ?? 0;
+  }
+  setMinMaxLimitWidth(setWidth: boolean = false) {
+    const internalProps = this.internalProps;
+    //设置列宽
+    for (let col = 0; col < internalProps.layoutMap.columnWidths.length; col++) {
+      if (this.internalProps._widthResizedColMap.has(col)) {
+        continue;
+      }
+      const { width, minWidth, maxWidth } = internalProps.layoutMap.columnWidths?.[col] ?? {};
+      // width 为 "auto" 时先不存储ColWidth
+      if (
+        setWidth &&
+        width &&
+        ((typeof width === 'string' && width !== 'auto') || (typeof width === 'number' && width > 0))
+      ) {
+        this._setColWidth(col, width);
+      }
+      if (minWidth && ((typeof minWidth === 'number' && minWidth > 0) || typeof minWidth === 'string')) {
+        this.setMinColWidth(col, minWidth);
+      }
+      if (maxWidth && ((typeof maxWidth === 'number' && maxWidth > 0) || typeof maxWidth === 'string')) {
+        this.setMaxColWidth(col, maxWidth);
+      }
+    }
+  }
+  setSortedIndexMap(field: FieldDef, filedMap: ISortedMapItem) {
+    this.dataSource?.setSortedIndexMap(field, filedMap);
+  }
+  // startInertia() {
+  //   startInertia(0, -1, 1, this.stateManager);
+  // }
+
+  checkReactCustomLayout() {
+    if (!this.reactCustomLayout) {
+      this.reactCustomLayout = new ReactCustomLayout(this);
+    }
+  }
+
+  get bodyDomContainer() {
+    return this.internalProps.bodyDomContainer;
+  }
+  get headerDomContainer() {
+    return this.internalProps.headerDomContainer;
+  }
+  get frozenBodyDomContainer() {
+    return this.internalProps.frozenBodyDomContainer;
+  }
+  get frozenHeaderDomContainer() {
+    return this.internalProps.frozenHeaderDomContainer;
+  }
+  get rightFrozenBodyDomContainer() {
+    return this.internalProps.rightFrozenBodyDomContainer;
+  }
+  get rightFrozenHeaderDomContainer() {
+    return this.internalProps.rightFrozenHeaderDomContainer;
+  }
+  get frozenBottomDomContainer() {
+    return this.internalProps.frozenBottomDomContainer;
+  }
+  get bottomDomContainer() {
+    return this.internalProps.bottomDomContainer;
+  }
+  get rightFrozenBottomDomContainer() {
+    return this.internalProps.rightFrozenBottomDomContainer;
+  }
+  /**
+   * 显示移动列或移动行的高亮线  如果(col，row)单元格是列头 则显示高亮列线；  如果(col，row)单元格是行头 则显示高亮行线
+   * @param col 在表头哪一列后显示高亮线
+   * @param row 在表头哪一行后显示高亮线
+   */
+  showMoverLine(col: number, row: number) {
+    this.scenegraph.component.showMoveCol(col, row, 0);
+    this.scenegraph.renderSceneGraph();
+  }
+  /**
+   * 隐藏掉移动列或移动行的高亮线
+   * @param col
+   * @param row
+   */
+  hideMoverLine(col: number, row: number) {
+    this.scenegraph.component.hideMoveCol();
+    this.scenegraph.renderSceneGraph();
+  }
+  /** 关闭表格的滚动 */
+  disableScroll() {
+    this.eventManager.disableScroll();
+  }
+  /** 开启表格的滚动 */
+  enableScroll() {
+    this.eventManager.enableScroll();
+  }
+
+  getGroupTitleLevel(col: number, row: number): number | undefined {
+    return undefined;
+  }
+
+  // anmiation
+  scrollToRow(row: number, animationOption?: ITableAnimationOption | boolean) {
+    if (!animationOption) {
+      this.scrollToCell({ row });
+      return;
+    }
+    this.animationManager.scrollTo({ row }, animationOption);
+  }
+  scrollToCol(col: number, animationOption?: ITableAnimationOption | boolean) {
+    if (!animationOption) {
+      this.scrollToCell({ col });
+      return;
+    }
+    this.animationManager.scrollTo({ col }, animationOption);
+  }
+  /**
+   * 滚动到具体某个单元格位置
+   * @param cellAddr 要滚动到的单元格位置
+   * @param animationOption 动画配置
+   */
+  scrollToCell(cellAddr: { col?: number; row?: number }, animationOption?: ITableAnimationOption | boolean) {
+    if (animationOption) {
+      this.animationManager.scrollTo(cellAddr, animationOption);
+      return;
+    }
+    const drawRange = this.getDrawRange();
+    if (isValid(cellAddr.col) && cellAddr.col >= this.frozenColCount) {
+      const frozenWidth = this.getFrozenColsWidth();
+      const left = this.getColsWidth(0, cellAddr.col - 1);
+      this.scrollLeft = Math.min(left - frozenWidth, this.getAllColsWidth() - drawRange.width);
+    }
+    if (isValid(cellAddr.row) && cellAddr.row >= this.frozenRowCount) {
+      const frozenHeight = this.getFrozenRowsHeight();
+      const top = this.getRowsHeight(0, cellAddr.row - 1);
+      this.scrollTop = Math.min(top - frozenHeight, this.getAllRowsHeight() - drawRange.height);
+    }
+    this.render();
+  }
+  checkHasColumnAutoWidth(): boolean {
+    return checkHasColumnAutoWidth(this);
   }
 }

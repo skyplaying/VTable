@@ -1,20 +1,43 @@
 import type { SimpleHeaderLayoutMap } from '../../layout';
-import type { ColumnTypeOption, TextColumnDefine } from '../../ts-types';
+import type {
+  ColumnDefine,
+  ColumnTypeOption,
+  IRowSeriesNumber,
+  ListTableAPI,
+  PivotTableAPI,
+  RadioColumnDefine,
+  RadioStyleOption,
+  TextColumnDefine
+} from '../../ts-types';
 import { HierarchyState, IconPosition } from '../../ts-types';
 import * as calc from '../../tools/calc';
 import { validToString } from '../../tools/util';
 import { getQuadProps } from '../utils/padding';
 import { getProp } from '../utils/get-prop';
-import type { BaseTableAPI } from '../../ts-types/base-table';
+import type { BaseTableAPI, HeaderData } from '../../ts-types/base-table';
 import type { PivotHeaderLayoutMap } from '../../layout/pivot-header-layout';
-import { getAxisConfigInPivotChart } from '../../layout/chart-helper/get-axis-config';
-import { computeAxisComponentWidth } from '../../components/axis/get-axis-component-size';
-import { Group as VGroup } from '@src/vrender';
-import { isObject } from '@visactor/vutils';
+import type { ComputeAxisComponentWidth } from '../../components/axis/get-axis-component-size';
+import { Factory } from '../../core/factory';
+import type { Group as VGroup } from '@src/vrender';
+import { isArray, isFunction, isNumber, isObject, isValid } from '@visactor/vutils';
 import { decodeReactDom, dealPercentCalc } from '../component/custom';
+import { breakString } from '../utils/break-string';
+import { emptyCustomLayout } from '../../components/react/react-custom-layout';
+import { getOrApply } from '../../tools/helper';
 
 export function computeColsWidth(table: BaseTableAPI, colStart?: number, colEnd?: number, update?: boolean): void {
-  const time = typeof window !== 'undefined' ? window.performance.now() : 0;
+  // const time = typeof window !== 'undefined' ? window.performance.now() : 0;
+  (table as PivotTableAPI | ListTableAPI).internalProps.columnWidthConfig &&
+    (table as PivotTableAPI | ListTableAPI)._parseColumnWidthConfig(
+      (table as PivotTableAPI | ListTableAPI).internalProps.columnWidthConfig as any
+    );
+
+  (table as PivotTableAPI).isPivotTable() &&
+    (table as PivotTableAPI).internalProps.columnWidthConfigForRowHeader &&
+    (table as PivotTableAPI)._parseColumnWidthConfigForRowHeader(
+      (table as PivotTableAPI).internalProps.columnWidthConfigForRowHeader
+    );
+
   colStart = colStart ?? 0;
   colEnd = colEnd ?? table.colCount - 1;
   // table._clearColRangeWidthsMap();
@@ -25,6 +48,12 @@ export function computeColsWidth(table: BaseTableAPI, colStart?: number, colEnd?
     //   for (let col = colStart; col <= colEnd; col++) {
     //     table._clearColRangeWidthsMap(col);
     //   }
+  }
+
+  const layoutMap = table.internalProps.layoutMap;
+  if (table.isPivotTable()) {
+    (layoutMap as PivotHeaderLayoutMap).enableUseGetBodyCache();
+    (layoutMap as PivotHeaderLayoutMap).enableUseHeaderPathCache();
   }
 
   const oldColWidths: number[] = [];
@@ -38,7 +67,8 @@ export function computeColsWidth(table: BaseTableAPI, colStart?: number, colEnd?
     let maxWidth;
     if (
       !table.internalProps.transpose &&
-      table.internalProps.layoutMap.columnWidths?.[col]?.columnWidthComputeMode === 'only-header' &&
+      (table.internalProps.layoutMap.columnObjects?.[col]?.columnWidthComputeMode === 'only-header' ||
+        table.columnWidthComputeMode === 'only-header') &&
       'showHeader' in table.internalProps.layoutMap
     ) {
       const temp = table.internalProps.layoutMap.showHeader;
@@ -47,7 +77,8 @@ export function computeColsWidth(table: BaseTableAPI, colStart?: number, colEnd?
       table.internalProps.layoutMap.showHeader = temp;
     } else if (
       !table.internalProps.transpose &&
-      table.internalProps.layoutMap.columnWidths?.[col]?.columnWidthComputeMode === 'only-body'
+      (table.internalProps.layoutMap.columnObjects?.[col]?.columnWidthComputeMode === 'only-body' ||
+        table.columnWidthComputeMode === 'only-body')
     ) {
       maxWidth = computeColWidth(
         col,
@@ -81,17 +112,21 @@ export function computeColsWidth(table: BaseTableAPI, colStart?: number, colEnd?
     table._clearColRangeWidthsMap();
     const canvasWidth = table.tableNoFrameWidth;
     let actualHeaderWidth = 0;
-    for (let col = 0; col < table.colCount; col++) {
-      const colWidth = update ? newWidths[col] : table.getColWidth(col);
-      if (
-        col < table.rowHeaderLevelCount ||
-        (table.isPivotChart() && col >= table.colCount - table.rightFrozenColCount)
-      ) {
-        actualHeaderWidth += colWidth;
+    let startCol = 0;
+    let endCol = table.colCount;
+    if (table.widthAdaptiveMode === 'only-body') {
+      for (let col = 0; col < table.colCount; col++) {
+        const colWidth = update ? newWidths[col] ?? table.getColWidth(col) : table.getColWidth(col);
+        if (
+          col < table.rowHeaderLevelCount ||
+          (table.isPivotChart() && col >= table.colCount - table.rightFrozenColCount)
+        ) {
+          actualHeaderWidth += colWidth;
+        }
       }
+      startCol = table.rowHeaderLevelCount;
+      endCol = table.isPivotChart() ? table.colCount - table.rightFrozenColCount : table.colCount;
     }
-    const startCol = table.rowHeaderLevelCount;
-    const endCol = table.isPivotChart() ? table.colCount - table.rightFrozenColCount : table.colCount;
     getAdaptiveWidth(canvasWidth - actualHeaderWidth, startCol, endCol, update, newWidths, table);
     // const canvasWidth = table.internalProps.canvas.width;
     // const rowHeaderWidth = table.getColsWidth(0, table.rowHeaderLevelCount - 1);
@@ -132,9 +167,9 @@ export function computeColsWidth(table: BaseTableAPI, colStart?: number, colEnd?
     let actualHeaderWidth = 0;
     let actualWidth = 0;
     for (let col = 0; col < table.colCount; col++) {
-      const colWidth = update ? newWidths[col] : table.getColWidth(col);
+      const colWidth = update ? newWidths[col] ?? table.getColWidth(col) : table.getColWidth(col);
       if (
-        col < table.rowHeaderLevelCount ||
+        col < table.rowHeaderLevelCount + table.leftRowSeriesNumberCount ||
         (table.isPivotChart() && col >= table.colCount - table.rightFrozenColCount)
       ) {
         actualHeaderWidth += colWidth;
@@ -143,7 +178,7 @@ export function computeColsWidth(table: BaseTableAPI, colStart?: number, colEnd?
     }
     // 如果内容宽度小于canvas宽度，执行adaptive放大
     if (actualWidth < canvasWidth && actualWidth > actualHeaderWidth) {
-      const startCol = table.rowHeaderLevelCount;
+      const startCol = table.rowHeaderLevelCount + table.leftRowSeriesNumberCount;
       const endCol = table.isPivotChart() ? table.colCount - table.rightFrozenColCount : table.colCount;
       getAdaptiveWidth(canvasWidth - actualHeaderWidth, startCol, endCol, update, newWidths, table);
     }
@@ -184,7 +219,7 @@ export function computeColsWidth(table: BaseTableAPI, colStart?: number, colEnd?
     for (let col = 0; col < table.colCount; col++) {
       // newColWidth could not be in column min max range possibly
       // const newColWidth = table._adjustColWidth(col, newWidths[col]) ?? table.getColWidth(col);
-      const newColWidth = newWidths[col] ?? table.getColWidth(col);
+      const newColWidth = newWidths[col] ?? table.getColWidth(col) ?? table.getColWidth(col);
       if (newColWidth !== oldColWidths[col]) {
         // update the column width in scenegraph
         table._setColWidth(col, newColWidth, false, true);
@@ -205,6 +240,11 @@ export function computeColsWidth(table: BaseTableAPI, colStart?: number, colEnd?
     table.scenegraph.updateContainer(true);
   }
   // console.log('computeColsWidth  time:', (typeof window !== 'undefined' ? window.performance.now() : 0) - time, colStart, colEnd);
+
+  if (table.isPivotTable()) {
+    (layoutMap as PivotHeaderLayoutMap).disableUseGetBodyCache();
+    (layoutMap as PivotHeaderLayoutMap).disableUseHeaderPathCache();
+  }
 }
 
 /**
@@ -223,63 +263,16 @@ export function computeColWidth(
   table: BaseTableAPI,
   forceCompute: boolean = false //forceCompute如果设置为true 即便不是自动列宽的列也会按内容计算列宽
 ): number {
-  // const { layoutMap, transpose } = table.internalProps;
-  // let { width } = layoutMap?.getColumnWidthDefined(col) ?? {};
+  let width = getColWidthDefinedWidthResizedWidth(col, table);
+  if (
+    table.internalProps.transpose &&
+    width === 'auto' &&
+    ((table.columnWidthComputeMode === 'only-header' && col >= table.rowHeaderLevelCount) ||
+      (table.columnWidthComputeMode === 'only-body' && col < table.rowHeaderLevelCount))
+  ) {
+    width = table.getDefaultColumnWidth(col);
+  }
 
-  // if (transpose) {
-  //   // 转置模式
-  //   if (table.widthMode === 'standard') {
-  //     // return table.getColWidth(col);
-  //     // standard模式使用默认值
-  //     if (table.isRowHeader(col, 0) || table.isCornerHeader(col, 0)) {
-  //       const defaultWidth = Array.isArray(table.defaultHeaderColWidth)
-  //         ? table.defaultHeaderColWidth[col] ?? table.defaultColWidth
-  //         : table.defaultHeaderColWidth;
-  //       if (defaultWidth === 'auto') {
-  //         widthfffff = 'auto';
-  //       } else {
-  //         return defaultWidth;
-  //       }
-  //     }
-
-  //     if (widthfffff !== 'auto') {
-  //       // if (width && (typeof width === 'string' || width > 0)) return width;
-  //       if (typeof widthfffff === 'string') {
-  //         return calc.toPx(widthfffff, table.internalProps.calcWidthContext);
-  //       } else if (widthfffff) {
-  //         return widthfffff;
-  //       }
-  //       return table.defaultColWidth;
-  //     }
-  //   } else if (
-  //     table.widthMode === 'adaptive' &&
-  //     col === 0 &&
-  //     widthfffff !== 'auto' &&
-  //     (layoutMap as SimpleHeaderLayoutMap)?.showHeader
-  //   ) {
-  //     // ToBeFixed hack逻辑，转置第一列列宽为header[0]
-  //     if (typeof widthfffff === 'string') {
-  //       return calc.toPx(widthfffff, table.internalProps.calcWidthContext);
-  //     } else if (widthfffff) {
-  //       return widthfffff;
-  //     }
-  //   }
-  //   // autoWidth adaptive 需要计算内容宽度
-  //   // do nothing
-  // } else if (widthfffff !== 'auto' && table.widthMode !== 'autoWidth' && !forceCompute) {
-  //   // if (width && (typeof width === 'string' || width > 0)) return width;
-  //   if (typeof widthfffff === 'string') {
-  //     return calc.toPx(widthfffff, table.internalProps.calcWidthContext);
-  //   } else if (widthfffff) {
-  //     return widthfffff;
-  //   }
-  //   //是透视表的行表头部分 则宽度按defaultHeaderColWidth设置
-  //   const defaultWidth = table.getColWidthDefine(col);
-  //   if (defaultWidth !== 'auto') {
-  //     return table.getColWidth(col);
-  //   }
-  // }
-  const width = getColWidthDefinedWidthResizedWidth(col, table);
   if (forceCompute && !table.internalProps.transpose) {
     return computeAutoColWidth(width, col, startRow, endRow, forceCompute, table);
   } else if (typeof width === 'number') {
@@ -334,8 +327,9 @@ function computeAutoColWidth(
     // 判断透视图轴组件
     if (table.isPivotChart()) {
       const layout = table.internalProps.layoutMap as PivotHeaderLayoutMap;
-      const axisConfig = getAxisConfigInPivotChart(col, row, layout);
+      const axisConfig = layout.getAxisConfigInPivotChart(col, row);
       if (axisConfig) {
+        const computeAxisComponentWidth: ComputeAxisComponentWidth = Factory.getFunction('computeAxisComponentWidth');
         const axisWidth = computeAxisComponentWidth(axisConfig, table);
         if (typeof axisWidth === 'number') {
           maxWidth = Math.max(axisWidth, maxWidth);
@@ -370,9 +364,18 @@ function computeAutoColWidth(
     }
 
     const cellType = table.isHeader(col, row)
-      ? table._getHeaderLayoutMap(col, row)?.headerType
+      ? (table._getHeaderLayoutMap(col, row) as HeaderData)?.headerType
       : table.getBodyColumnType(col, row);
-    if (cellType !== 'text' && cellType !== 'link' && cellType !== 'progressbar' && cellType !== 'checkbox') {
+    if (
+      isValid(cellType) &&
+      cellType !== 'text' &&
+      cellType !== 'link' &&
+      cellType !== 'progressbar' &&
+      cellType !== 'checkbox' &&
+      cellType !== 'radio' &&
+      cellType !== 'switch' &&
+      cellType !== 'button'
+    ) {
       // text&link&progressbar测量文字宽度
       // image&video&sparkline使用默认宽度
       maxWidth = Math.max(maxWidth, table.getColWidthDefinedNumber(col) || 0);
@@ -386,24 +389,40 @@ function computeAutoColWidth(
     if (layoutMap.isHeader(col, row)) {
       const hd = layoutMap.getHeader(col, row);
       // 如果某级表头设置了only-body，在计算表头内容宽度时跳过改级表头
-      if (hd?.define?.columnWidthComputeMode === 'only-body') {
+      if ((hd as HeaderData)?.define?.columnWidthComputeMode === 'only-body') {
         continue;
       }
-      if (hd?.hierarchyLevel) {
-        cellHierarchyIndent = (hd.hierarchyLevel ?? 0) * ((layoutMap as PivotHeaderLayoutMap).rowHierarchyIndent ?? 0);
+      if (isValid((hd as HeaderData)?.hierarchyLevel)) {
+        cellHierarchyIndent =
+          ((hd as HeaderData).hierarchyLevel ?? 0) *
+          ((layoutMap as PivotHeaderLayoutMap).rowHierarchyType === 'tree'
+            ? (layoutMap as PivotHeaderLayoutMap).rowHierarchyIndent ?? 0
+            : 0);
+        if (
+          (layoutMap as PivotHeaderLayoutMap).rowHierarchyTextStartAlignment &&
+          !table.internalProps.headerHelper.getHierarchyIcon(col, row)
+        ) {
+          cellHierarchyIndent += table.internalProps.headerHelper.getHierarchyIconWidth();
+        }
       }
-    } else {
+    } else if (table.isListTable()) {
       deltaRow = prepareDeltaRow;
       // 基本表格表身body单元格 如果是树形展开 需要考虑缩进值
       // const cellHierarchyState = table.getHierarchyState(col, row);
       // if (cellHierarchyState === HierarchyState.expand || cellHierarchyState === HierarchyState.collapse) {
       const define = table.getBodyColumnDefine(col, row);
-      if (define?.tree) {
+      if ((define as ColumnDefine)?.tree) {
         const indexArr = table.dataSource.getIndexKey(table.getRecordShowIndexByCell(col, row));
         cellHierarchyIndent =
           Array.isArray(indexArr) && table.getHierarchyState(col, row) !== HierarchyState.none
             ? (indexArr.length - 1) * ((layoutMap as SimpleHeaderLayoutMap).hierarchyIndent ?? 0)
             : 0;
+        if (
+          (layoutMap as SimpleHeaderLayoutMap).hierarchyTextStartAlignment &&
+          !table.internalProps.bodyHelper.getHierarchyIcon(col, row)
+        ) {
+          cellHierarchyIndent += table.internalProps.headerHelper.getHierarchyIconWidth();
+        }
       }
     }
 
@@ -430,6 +449,10 @@ function computeAutoColWidth(
     return colMinWidth;
   } else if (maxWidth > colMaxWidth) {
     return colMaxWidth;
+  } else if (maxWidth <= 0) {
+    // In the case of partially hiding the header, the width calculation may be 0.
+    // In this case, the default value is used to prevent it from being unable to be displayed
+    maxWidth = table.defaultColWidth;
   }
   return maxWidth;
 }
@@ -443,40 +466,50 @@ function computeAutoColWidth(
  */
 function computeCustomRenderWidth(col: number, row: number, table: BaseTableAPI) {
   const customRender = table.getCustomRender(col, row);
-  const customLayout = table.getCustomLayout(col, row);
+  let customLayout = table.getCustomLayout(col, row);
   if (customRender || customLayout) {
     let spanCol = 1;
     let width = 0;
     let renderDefault = false;
     let enableCellPadding = false;
+    let cellRange;
     if (
       table.isHeader(col, row) ||
       (table.getBodyColumnDefine(col, row) as TextColumnDefine)?.mergeCell ||
       table.hasCustomMerge()
     ) {
-      const cellRange = table.getCellRange(col, row);
+      cellRange = table.getCellRange(col, row);
       spanCol = cellRange.end.col - cellRange.start.col + 1;
     }
     const arg = {
-      col,
-      row,
+      col: cellRange?.start.col ?? col,
+      row: cellRange?.start.row ?? row,
       dataValue: table.getCellOriginValue(col, row),
       value: table.getCellValue(col, row) || '',
       rect: getCellRect(col, row, table),
-      table
+      table,
+      originCol: col,
+      originRow: row
     };
-    if (customLayout) {
+    if (customLayout === 'react-custom-layout') {
+      // customLayout = table._reactCreateGraphic;
+      customLayout = table.reactCustomLayout?.getCustomLayoutFunc(col, row) || emptyCustomLayout;
+    }
+    if (isFunction(customLayout)) {
       // 处理customLayout
       const customLayoutObj = customLayout(arg);
-      if (customLayoutObj.rootContainer instanceof VGroup) {
+      if (customLayoutObj.rootContainer) {
         customLayoutObj.rootContainer = decodeReactDom(customLayoutObj.rootContainer);
         dealPercentCalc(customLayoutObj.rootContainer, 0, table.getRowHeight(row));
+        const setedWidth = (customLayoutObj.rootContainer as VGroup).attribute.width;
         customLayoutObj.rootContainer.setStage(table.scenegraph.stage);
-        width = (customLayoutObj.rootContainer as VGroup).AABBBounds.width() ?? 0;
+        width = setedWidth > 0 ? setedWidth : (customLayoutObj.rootContainer as VGroup).AABBBounds.width() ?? 0;
         renderDefault = customLayoutObj.renderDefault;
         enableCellPadding = customLayoutObj.enableCellPadding;
       } else {
         width = 0;
+        renderDefault = customLayoutObj.renderDefault;
+        enableCellPadding = customLayoutObj.enableCellPadding;
       }
     } else if (typeof customRender === 'function') {
       // 处理customRender
@@ -487,6 +520,7 @@ function computeCustomRenderWidth(col: number, row: number, table: BaseTableAPI)
       width = customRender?.expectedWidth ?? 0;
       renderDefault = customRender?.renderDefault;
     }
+    width = Math.ceil(width);
     if (enableCellPadding) {
       const actStyle = table._getCellStyle(col, row);
       const padding = getQuadProps(getProp('padding', actStyle, col, row, table));
@@ -548,7 +582,7 @@ function computeTextWidth(col: number, row: number, cellType: ColumnTypeOption, 
     mayHaveIcon = true;
   } else {
     const define = table.getBodyColumnDefine(col, row);
-    mayHaveIcon = !!define?.icon || !!define?.tree;
+    mayHaveIcon = !!define?.icon || !!(define as ColumnDefine)?.tree || (define as IRowSeriesNumber)?.dragOrder;
   }
   if (mayHaveIcon) {
     const icons = table.getCellIcons(col, row);
@@ -575,17 +609,45 @@ function computeTextWidth(col: number, row: number, cellType: ColumnTypeOption, 
   const fontSize = getProp('fontSize', actStyle, col, row, table);
   const fontFamily = getProp('fontFamily', actStyle, col, row, table);
   const fontWeight = getProp('fontWeight', actStyle, col, row, table);
-  let text;
+  let text: string;
   if (cellType === 'checkbox') {
     text = isObject(cellValue) ? (cellValue as any).text : cellValue;
+  } else if (cellType === 'radio') {
+    if (isArray(cellValue)) {
+      text = '';
+      const define = table.getBodyColumnDefine(col, row);
+      const radioDirectionInCell = (define as RadioColumnDefine)?.radioDirectionInCell ?? 'vertical';
+      if (radioDirectionInCell === 'vertical') {
+        cellValue.forEach(line => {
+          text += (isObject(line) ? (line as any).text : line).toString() + '\n';
+        });
+      } else if (radioDirectionInCell === 'horizontal') {
+        cellValue.forEach(line => {
+          text += (isObject(line) ? (line as any).text : line).toString();
+        });
+      }
+    } else {
+      text = isObject(cellValue) ? (cellValue as any).text : cellValue;
+    }
+  } else if (cellType === 'button') {
+    const define = table.getBodyColumnDefine(col, row);
+    const buttonTextValue = getOrApply((define as any).text, {
+      col,
+      row,
+      table,
+      context: null,
+      value: cellValue,
+      dataValue: table.getCellOriginValue(col, row)
+    });
+    text = buttonTextValue ?? (cellValue as string) ?? '';
   } else {
     text = cellValue;
   }
-  const lines = validToString(text).split('\n') || [];
-  if (lines.length >= 1) {
+  const lines = breakString(text, table).text;
+  if (lines.length >= 1 && !(lines.length === 1 && lines[0] === '')) {
     // eslint-disable-next-line no-loop-func
     lines.forEach((line: string) => {
-      const width = table.measureText(line.slice(0, table.options.maxCharactersNumber || 200), {
+      const width = table.measureText(line, {
         fontSize,
         fontFamily,
         fontWeight
@@ -619,6 +681,38 @@ function computeTextWidth(col: number, row: number, cellType: ColumnTypeOption, 
       const spaceBetweenTextAndIcon = getProp('spaceBetweenTextAndIcon', actStyle, col, row, table);
       maxWidth += spaceBetweenTextAndIcon;
     }
+  } else if (cellType === 'radio') {
+    const size = getProp('size', actStyle, col, row, table);
+    const outerRadius = getProp('outerRadius', actStyle, col, row, table);
+    const circleSize = isNumber(outerRadius) ? outerRadius * 2 : size;
+    const spaceBetweenTextAndIcon = getProp('spaceBetweenTextAndIcon', actStyle, col, row, table);
+
+    if (isArray(cellValue)) {
+      const define = table.getBodyColumnDefine(col, row);
+      const spaceBetweenRadio = getProp('spaceBetweenRadio', actStyle, col, row, table);
+      const radioDirectionInCell = (define as RadioColumnDefine)?.radioDirectionInCell ?? 'vertical';
+      if (radioDirectionInCell === 'vertical') {
+        // one icon
+        maxWidth += circleSize;
+        maxWidth += spaceBetweenTextAndIcon;
+      } else if (radioDirectionInCell === 'horizontal') {
+        // multi icon
+        maxWidth += (circleSize + spaceBetweenTextAndIcon) * cellValue.length;
+        maxWidth += spaceBetweenRadio * (cellValue.length - 1);
+      }
+    } else {
+      // one icon
+      maxWidth += circleSize;
+      if (text) {
+        maxWidth += spaceBetweenTextAndIcon;
+      }
+    }
+  } else if (cellType === 'switch') {
+    const boxWidth = getProp('boxWidth', actStyle, col, row, table);
+    maxWidth = boxWidth;
+  } else if (cellType === 'button') {
+    const buttonPadding = getProp('buttonPadding', actStyle, col, row, table);
+    maxWidth += buttonPadding * 2;
   }
 
   return maxWidth;
@@ -654,8 +748,10 @@ export function getAdaptiveWidth(
 ) {
   let actualWidth = 0;
   const adaptiveColumns: number[] = [];
+  const sparklineColumns = [];
+  let totalSparklineAbleWidth = 0;
   for (let col = startCol; col < endColPlus1; col++) {
-    const width = update ? newWidths[col] : table.getColWidth(col);
+    const width = update ? newWidths[col] ?? table.getColWidth(col) : table.getColWidth(col);
     const maxWidth = table.getMaxColWidth(col);
     const minWidth = table.getMinColWidth(col);
     if (width !== maxWidth && width !== minWidth) {
@@ -665,9 +761,39 @@ export function getAdaptiveWidth(
       // fixed width, do not adaptive
       totalDrawWidth -= width;
     }
+
+    if (table.options.customConfig?.shrinkSparklineFirst) {
+      const bodyCellType = table.getBodyColumnType(col, 0);
+      if (bodyCellType === 'sparkline') {
+        sparklineColumns.push({ col, width });
+        totalSparklineAbleWidth += width - table.defaultColWidth;
+      }
+    }
   }
 
   const factor = totalDrawWidth / actualWidth;
+
+  if (
+    table.options.customConfig?.shrinkSparklineFirst &&
+    factor < 1 &&
+    actualWidth - totalDrawWidth < totalSparklineAbleWidth
+  ) {
+    // only shrink sparkline column
+    for (let i = 0; i < sparklineColumns.length; i++) {
+      const { col, width } = sparklineColumns[i];
+      const deltaWidth = (actualWidth - totalDrawWidth) / sparklineColumns.length;
+      const colWidth = Math.floor(width - deltaWidth);
+
+      if (update) {
+        newWidths[col] = table._adjustColWidth(col, colWidth);
+      } else if (fromScenegraph) {
+        table.scenegraph.setColWidth(col, table._adjustColWidth(col, colWidth));
+      } else {
+        table._setColWidth(col, table._adjustColWidth(col, colWidth), false, true);
+      }
+    }
+    return;
+  }
 
   for (let i = 0; i < adaptiveColumns.length; i++) {
     const col = adaptiveColumns[i];
@@ -677,12 +803,12 @@ export function getAdaptiveWidth(
         totalDrawWidth -
         adaptiveColumns.reduce((acr, cur, index) => {
           if (cur !== col) {
-            return acr + (update ? newWidths[cur] : table.getColWidth(cur));
+            return acr + (update ? newWidths[cur] ?? table.getColWidth(col) : table.getColWidth(cur));
           }
           return acr;
         }, 0);
     } else {
-      colWidth = Math.round((update ? newWidths[col] : table.getColWidth(col)) * factor);
+      colWidth = Math.round((update ? newWidths[col] ?? table.getColWidth(col) : table.getColWidth(col)) * factor);
     }
     if (update) {
       newWidths[col] = table._adjustColWidth(col, colWidth);

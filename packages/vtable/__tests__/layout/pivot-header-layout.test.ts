@@ -2583,6 +2583,7 @@ describe('pivot-header-layout test', () => {
         dimensionKey: '231012120511014',
         value: '地区-dongbei',
         level: 0,
+        afterSpanLevel: 0,
         startIndex: 0,
         startInTotal: 0,
         id: 1,
@@ -2592,6 +2593,7 @@ describe('pivot-header-layout test', () => {
         dimensionKey: '231012120511014',
         value: '中南',
         level: 0,
+        afterSpanLevel: 0,
         startIndex: 1,
         startInTotal: 1,
         id: 2,
@@ -2601,6 +2603,7 @@ describe('pivot-header-layout test', () => {
         dimensionKey: '231012120511014',
         value: '华东',
         level: 0,
+        afterSpanLevel: 0,
         startIndex: 2,
         startInTotal: 2,
         id: 3,
@@ -2610,6 +2613,7 @@ describe('pivot-header-layout test', () => {
         dimensionKey: '231012120511014',
         value: '华北',
         level: 0,
+        afterSpanLevel: 0,
         startIndex: 3,
         startInTotal: 3,
         id: 4,
@@ -2619,6 +2623,7 @@ describe('pivot-header-layout test', () => {
         dimensionKey: '231012120511014',
         value: '西北',
         level: 0,
+        afterSpanLevel: 0,
         startIndex: 4,
         startInTotal: 4,
         id: 5,
@@ -2628,71 +2633,10 @@ describe('pivot-header-layout test', () => {
         dimensionKey: '231012120511014',
         value: '西南',
         level: 0,
+        afterSpanLevel: 0,
         startIndex: 5,
         startInTotal: 5,
         id: 6,
-        size: 1
-      }
-    ]);
-    expect(layout.rowTree).toEqual([
-      {
-        dimensionKey: '231012120511053',
-        value: '公司',
-        children: [
-          {
-            indicatorKey: '10002',
-            value: '',
-            level: 1,
-            startIndex: 0,
-            startInTotal: 0,
-            id: 8,
-            size: 1
-          }
-        ],
-        level: 0,
-        startIndex: 0,
-        startInTotal: 0,
-        id: 7,
-        size: 1
-      },
-      {
-        dimensionKey: '231012120511053',
-        value: '小型企业',
-        children: [
-          {
-            indicatorKey: '10002',
-            value: '',
-            level: 1,
-            startIndex: 0,
-            startInTotal: 1,
-            id: 10,
-            size: 1
-          }
-        ],
-        level: 0,
-        startIndex: 1,
-        startInTotal: 1,
-        id: 9,
-        size: 1
-      },
-      {
-        dimensionKey: '231012120511053',
-        value: '消费者',
-        children: [
-          {
-            indicatorKey: '10002',
-            value: '',
-            level: 1,
-            startIndex: 0,
-            startInTotal: 2,
-            id: 12,
-            size: 1
-          }
-        ],
-        level: 0,
-        startIndex: 2,
-        startInTotal: 2,
-        id: 11,
         size: 1
       }
     ]);
@@ -2840,7 +2784,8 @@ describe('pivot-header-layout test', () => {
       },
       zero: true,
       nice: true,
-      __ticksForVTable: [-100000, 0, 100000, 200000, 300000, 400000, 500000]
+      __ticksForVTable: [-100000, 0, 100000, 200000, 300000, 400000, 500000],
+      __vtablePadding: [1, 1, 0, 1]
     });
     expect(layout.getAxisConfigInPivotChart(2, 4)).toEqual({
       domain: ['辽宁', '黑龙江', '吉林'],
@@ -2907,7 +2852,8 @@ describe('pivot-header-layout test', () => {
         }
       },
       paddingInner: [0.15, 0.1],
-      paddingOuter: [0.075, 0.1]
+      paddingOuter: [0.075, 0.1],
+      __vtablePadding: [1, 1, 0, 1]
     });
   });
 
@@ -2930,7 +2876,6 @@ describe('pivot-header-layout test', () => {
     expect(layout.isEmpty(0, 4)).toBe(true);
     expect(layout.isEmpty(2, 4)).toBe(false);
     expect(layout.isEmpty(2, 1)).toBe(false);
+    tableInstance.release();
   });
-
-  tableInstance.release();
 });

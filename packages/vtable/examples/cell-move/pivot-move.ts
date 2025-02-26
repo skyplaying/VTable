@@ -5,7 +5,6 @@ const CONTAINER_ID = 'vTable';
 
 export function createTable() {
   const option = {
-    enableDataAnalysis: false,
     allowRangePaste: true,
     columnTree: [
       {
@@ -348,7 +347,13 @@ export function createTable() {
       {
         dimensionKey: '邮寄方式',
         title: '邮寄方式11',
-        showSort: true,
+        showSort(args) {
+          const { col, row, table } = args;
+          if (col % 3 === 0) {
+            return true;
+          }
+          return false;
+        },
         headerFormat(value) {
           return `${value}邮寄方式`;
         },
@@ -361,7 +366,13 @@ export function createTable() {
     ],
     indicators: [
       {
-        showSort: true,
+        showSort(args) {
+          const { col, row, table } = args;
+          if (col % 3 === 0) {
+            return true;
+          }
+          return false;
+        },
         indicatorKey: '1',
         title: '销售额',
         format(value) {
@@ -402,7 +413,10 @@ export function createTable() {
     widthMode: 'standard', // 宽度模式：standard 标准模式； adaptive 自动填满容器
     // heightMode: 'autoHeight',
     autoWrapText: true,
-    columnResizeType: 'indicator', // 'column' | 'indicator' | 'all'
+    resize: {
+      columnResizeType: 'indicator', // 'column' | 'indicator' | 'all'
+      columnResizeMode: 'header'
+    },
     pivotSortState: [
       {
         dimensions: [
@@ -447,7 +461,6 @@ export function createTable() {
     // tooltip: {
     //   isShowOverflowTextTooltip: true,
     // },
-    columnResizeMode: 'header',
     dragHeaderMode: 'all',
     keyboardOptions: {
       selectAllOnCtrlA: true,
@@ -463,7 +476,7 @@ export function createTable() {
     console.log('copy_data', e);
   });
 
-  VTable.bindDebugTool(instance.scenegraph.stage as any, {
-    customGrapicKeys: ['role', '_updateTag']
-  });
+  // VTable.bindDebugTool(instance.scenegraph.stage as any, {
+  //   customGrapicKeys: ['role', '_updateTag']
+  // });
 }

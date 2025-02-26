@@ -1,8 +1,10 @@
-import { isArray, merge } from '@visactor/vutils';
+import { isArray, isFunction, isString, merge } from '@visactor/vutils';
 import type { BaseTableAPI } from '../../ts-types/base-table';
 import type { ICellAxisOption } from '../../ts-types/component/axis';
 import { DEFAULT_TEXT_FONT_FAMILY, DEFAULT_TEXT_FONT_SIZE, commonAxis } from './get-axis-attributes';
 
+export type ComputeAxisComponentWidth = (config: ICellAxisOption, table: BaseTableAPI) => number;
+export type ComputeAxisComponentHeight = (config: ICellAxisOption, table: BaseTableAPI) => number;
 /**
  * @description: compuational vertical axis width
  * @param {ICellAxisOption} config
@@ -37,7 +39,9 @@ export function computeAxisComponentWidth(config: ICellAxisOption, table: BaseTa
       });
     } else {
       let ticks: string[];
-      if (isArray((config as any).__ticksForVTable)) {
+      if (config.sync?.tickAlign && isFunction(config.tick?.tickMode)) {
+        ticks = config.tick.tickMode();
+      } else if (isArray((config as any).__ticksForVTable)) {
         ticks = (config as any).__ticksForVTable;
       } else {
         const range = attribute.range;
@@ -69,7 +73,8 @@ export function computeAxisComponentWidth(config: ICellAxisOption, table: BaseTa
 
   // title
   let titleWidth = 0;
-  if (attribute.title.visible && attribute.title.text) {
+  // align with vrender-component, use isString()
+  if (attribute.title.visible && isString(attribute.title.text)) {
     const { width, height } = table.measureText(attribute.title.text, {
       fontSize: attribute.title?.style?.fontSize ?? DEFAULT_TEXT_FONT_SIZE,
       fontWeight: attribute.title?.style?.fontWeight ?? 'normal',
@@ -84,8 +89,7 @@ export function computeAxisComponentWidth(config: ICellAxisOption, table: BaseTa
     }
     titleWidth += attribute.title.space ?? 4;
   }
-
-  return tickWidth + labelWidth + titleWidth + 1; // 2 is buffer
+  return Math.ceil(tickWidth + labelWidth + titleWidth + 1); // 2 is buffer
 }
 
 /**
@@ -122,7 +126,9 @@ export function computeAxisComponentHeight(config: ICellAxisOption, table: BaseT
       });
     } else {
       let ticks: string[];
-      if (isArray((config as any).__ticksForVTable)) {
+      if (config.sync?.tickAlign && isFunction(config.tick?.tickMode)) {
+        ticks = config.tick.tickMode();
+      } else if (isArray((config as any).__ticksForVTable)) {
         ticks = (config as any).__ticksForVTable;
       } else {
         const range = attribute.range;

@@ -1,5 +1,5 @@
 import type { CellRange, RectProps } from '../../ts-types';
-import { Placement } from '../../ts-types';
+import type { Placement } from '../../ts-types';
 import type { BaseTooltip } from './BaseTooltip';
 import { BubbleTooltip } from './Tooltip';
 import { cellInRange } from '../../tools/helper';
@@ -8,6 +8,7 @@ import { isMobile } from '../../tools/util';
 import type { TooltipOptions } from '../../ts-types/tooltip';
 import { TABLE_EVENT_TYPE } from '../../core/TABLE_EVENT_TYPE';
 import type { BaseTableAPI } from '../../ts-types/base-table';
+import { isFunction } from '@visactor/vutils';
 const TOOLTIP_INSTANCE_FACTORY = {
   // tooltip(table: BaseTableAPI): BaseTooltip {
   //   return new Tooltip(table);
@@ -21,6 +22,9 @@ type AttachInfo = {
   range: CellRange;
   tooltipOptions: TooltipOptions;
 };
+export interface ITooltipHandler {
+  new (table: BaseTableAPI, confine: boolean): TooltipHandler;
+}
 
 export class TooltipHandler {
   private _table: BaseTableAPI;
@@ -121,43 +125,12 @@ export class TooltipHandler {
         return;
       }
       const { col, row } = e;
+      this.showTooltip(col, row);
       // if (e.related) {
       //   if (this._isBindCell(col, row)) {
       //     return;
       //   }
       // }
-      let tooltipOption;
-      const headerDescription = table.getHeaderDescription(col, row);
-      if (headerDescription) {
-        const rect = table.getCellRangeRelativeRect({ col, row });
-        tooltipOption = {
-          content: headerDescription,
-          referencePosition: {
-            placement: Placement.bottom,
-            rect
-          },
-          style: { arrowMark: false }
-        };
-      } else if (table.internalProps.tooltip?.isShowOverflowTextTooltip) {
-        const overflowText = table.getCellOverflowText(col, row);
-        const rect = table.getCellRangeRelativeRect({ col, row });
-        if (overflowText) {
-          tooltipOption = {
-            content: headerDescription
-              ? `${headerDescription}
-    ${overflowText}`
-              : overflowText,
-            referencePosition: {
-              placement: Placement.bottom,
-              rect
-            },
-            style: table.theme.tooltipStyle
-          };
-        }
-      }
-      if (tooltipOption) {
-        this._bindToCell(e.col, e.row, tooltipOption);
-      }
     });
     table.on(TABLE_EVENT_TYPE.MOUSEMOVE_CELL, e => {
       //移动端不监听mousemove事件 （修改移动端tooltip时加的isMobile判断）
@@ -213,6 +186,49 @@ export class TooltipHandler {
       //   this._move(info.range.start.col, info.range.start.row, info.tooltipOptions);
       // }
     });
+  }
+  showTooltip(col: number, row: number) {
+    let tooltipOption;
+    const table = this._table;
+    const headerDescription = table.getHeaderDescription(col, row);
+    if (headerDescription) {
+      const rect = table.getCellRangeRelativeRect({ col, row });
+      tooltipOption = {
+        content: headerDescription,
+        referencePosition: {
+          placement: table.internalProps.tooltip.position,
+          rect
+        },
+        disappearDelay: table.internalProps.tooltip.overflowTextTooltipDisappearDelay ?? 0,
+        style: table.theme.tooltipStyle
+      };
+    } else if (
+      isFunction(table.internalProps.tooltip?.isShowOverflowTextTooltip)
+        ? table.internalProps.tooltip.isShowOverflowTextTooltip(col, row, table)
+        : table.internalProps.tooltip.isShowOverflowTextTooltip
+    ) {
+      const overflowText = table.getCellOverflowText(col, row);
+      const rect = table.getCellRangeRelativeRect({ col, row });
+      if (overflowText) {
+        tooltipOption = {
+          content: headerDescription
+            ? `${headerDescription}
+  ${overflowText}`
+            : overflowText,
+          referencePosition: {
+            placement: table.internalProps.tooltip.position,
+            rect
+          },
+          disappearDelay: table.internalProps.tooltip.overflowTextTooltipDisappearDelay ?? 0,
+          style: table.theme.tooltipStyle
+        };
+      }
+    }
+    if (tooltipOption) {
+      this._bindToCell(col, row, tooltipOption);
+    } else {
+      this._unbindFromCell();
+    }
   }
   _getTooltipInstanceInfo(col: number, row: number): BaseTooltip | null {
     const table = this._table;

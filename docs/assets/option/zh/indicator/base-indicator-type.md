@@ -96,17 +96,23 @@ icon?:
     | ((args: CellInfo) => string | ColumnIconOption | (string | ColumnIconOption)[]);
 ```
 
-#${prefix}ColumnIconOption 定义：
+#${prefix}ColumnIconOption
 
 ```
-type ColumnIconOption = ImageIcon | SvgIcon;
+type ColumnIconOption = ImageIcon | SvgIcon | TextIcon;
 ```
 
 #${prefix}ImageIcon(Object)
+type 配置成 'image'。需要配置图片地址在 src 中
 {{ use: image-icon(  prefix = '##' + ${prefix}) }}
 
 #${prefix}SvgIcon(Object)
+type 配置成 'svg'。需要配置 svg 地址或者 svg 完整文件字符串在 svg 中
 {{ use: svg-icon(  prefix = '##' + ${prefix}) }}
+
+#${prefix}TextIcon(Object)
+type 配置成 'text'。需要配置文本内容在 content 中
+{{ use: text-icon(  prefix = '##' + ${prefix}) }}
 
 ${prefix} headerCustomRender(Function|Object)
 指标名称表头自定义渲染内容定义。可具体参考[基本表格自定义渲染配置](../option/ListTable-columns-text#headerCustomRender)
@@ -157,11 +163,27 @@ ${prefix} customLayout(Function)
     prefix =  '#'+${prefix},
 ) }}
 
-${prefix} dropDownMenu(Array)
-下拉菜单项配置。下拉菜单项可以是一级菜单项或者二级菜单项，只要有一个配置即可。具体类型为 MenuListItem[]。
+${prefix} dropDownMenu(MenuListItem[]|Function)
 
-${prefix} showSort(boolean)
+下拉菜单项配置。下拉菜单项可以是一级菜单项或者二级菜单项，只要有一个配置即可。
+
+具体类型为 `MenuListItem[] | ((args: { row: number; col: number; table: BaseTableAPI }) => MenuListItem[])`。
+
+{{ use: common-menu-list-item() }}
+
+${prefix} showSort(boolean|Function)
 是否显示排序 icon，无数据排序逻辑
+
+```
+  showSort?: boolean | ((args: { row: number; col: number; table: BaseTableAPI }) => boolean);
+```
+
+${prefix} hide(boolean|Function)
+指标隐藏 默认 false
+
+```
+  hide?:  boolean | ((args: { dimensionPaths: IDimensionInfo[]; table: BaseTableAPI }) => boolean);
+```
 
 ${prefix} disableColumnResize(boolean)
 是否禁用调整列宽,如果是转置表格或者是透视表的指标是行方向指定 那该配置不生效

@@ -1,12 +1,13 @@
 // ****** Icon配置信息，header ，以及列Icon *******9
 
+import type { ITextAttribute } from '@src/vrender';
 import type { Placement } from './table-engine';
 
 export interface IIconBase {
   /**
    * icon 是何种内容类型，如svg font。可用来约束不同类型的属性定义
    */
-  type: 'font' | 'svg' | 'path' | 'image';
+  type: 'text' | 'svg' | 'path' | 'image';
   /** icon的高度 */
   width?: number;
   /** icon的高度 */
@@ -63,7 +64,10 @@ export interface IIconBase {
       padding?: number[];
       bgColor?: string;
       arrowMark?: boolean;
+      maxWidth?: number;
+      maxHeight?: number;
     };
+    disappearDelay?: number;
   };
   /**
    * 是否可交互 默认为true  目前已知不可交互按钮：下拉菜单状态
@@ -72,17 +76,18 @@ export interface IIconBase {
 }
 
 // ****** Column Icon Options *******
-export interface FontIcon extends IIconBase {
-  type: 'font';
-  font?: string;
+export interface TextIcon extends IIconBase {
+  type: 'text';
   content: string;
-  color?: string;
+  style?: ITextAttribute;
 }
 export interface ImageIcon extends IIconBase {
   type: 'image';
   src: string;
   /** 图片裁切形状 */
   shape?: 'circle' | 'square';
+
+  isGif?: boolean;
 }
 
 export interface PathIcon extends IIconBase {
@@ -147,7 +152,8 @@ export enum IconFuncTypeEnum {
   expand = 'expand',
   collapse = 'collapse',
   drillDown = 'drillDown',
-  drillUp = 'drillUp'
+  drillUp = 'drillUp',
+  dragReorder = 'dragReorder'
 }
 export enum InternalIconName {
   upwardIconName = 'sort_upward',
@@ -160,7 +166,10 @@ export enum InternalIconName {
   dropdownIconName = 'dropdownIcon',
   // dropdownHoverIconName = 'dropdownIcon_hover',
   expandIconName = 'expand',
-  collapseIconName = 'collapse'
+  collapseIconName = 'collapse',
+  dragReorderIconName = 'dragReorder',
+
+  loadingIconName = 'loading'
 }
 // 目前暂不支持FontIcon&PathIcon
-export type ColumnIconOption = ImageIcon | SvgIcon;
+export type ColumnIconOption = ImageIcon | SvgIcon | TextIcon;

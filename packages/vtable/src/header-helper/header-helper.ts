@@ -1,4 +1,13 @@
-import type { ColumnIconOption, ListTableAPI, PivotTableAPI, RectProps, SortOrder, SvgIcon } from '../ts-types';
+import type {
+  ColumnDefine,
+  ColumnIconOption,
+  ColumnsDefine,
+  ListTableAPI,
+  PivotTableAPI,
+  RectProps,
+  SortOrder,
+  SvgIcon
+} from '../ts-types';
 import { HierarchyState, IconFuncTypeEnum, IconPosition, InternalIconName } from '../ts-types';
 import * as registerIcons from '../icons';
 import { cellInRange } from '../tools/helper';
@@ -7,7 +16,7 @@ import { Style } from './style/Style';
 import { ImageStyle } from './style/ImageStyle';
 import { TextHeaderStyle } from './style';
 import type { ListTable } from '../ListTable';
-import type { BaseTableAPI } from '../ts-types/base-table';
+import type { BaseTableAPI, HeaderData } from '../ts-types/base-table';
 import { CheckboxStyle } from './style/CheckboxStyle';
 import { isValid } from '@visactor/vutils';
 export class HeaderHelper {
@@ -51,11 +60,31 @@ export class HeaderHelper {
     const icons: ColumnIconOption[] = [];
     if (this._table.isPivotTable()) {
       // 透视表显示排序按钮
-      const { showSort } = this._table.internalProps.layoutMap.getHeader(col, row);
-      if (showSort) {
-        const order = (this._table as PivotTableAPI).getPivotSortState(col, row);
-        const sortIcon = order === 'asc' ? this.downIcon : order === 'desc' ? this.upIcon : this.normalIcon;
+      const { showSort, sort } = this._table.internalProps.layoutMap.getHeader(col, row) as HeaderData;
+      let _showSort;
+      if (typeof showSort === 'function') {
+        _showSort = showSort({ col, row, table: this._table });
+      } else {
+        _showSort = showSort;
+      }
+      if (_showSort) {
+        let order = (this._table as PivotTableAPI).getPivotSortState(col, row) as string;
+        if (order) {
+          order = order.toUpperCase();
+        }
+        const sortIcon = order === 'ASC' ? this.upIcon : order === 'DESC' ? this.downIcon : this.normalIcon;
 
+        if (sortIcon) {
+          icons.push(sortIcon);
+        }
+      } else if (sort) {
+        // 处理配置了sort的情况
+        const sortIcon = this.getSortIconForPivotTable(
+          (this._table as PivotTableAPI).getPivotSortState(col, row),
+          this._table,
+          col,
+          row
+        );
         if (sortIcon) {
           icons.push(sortIcon);
         }
@@ -108,7 +137,7 @@ export class HeaderHelper {
       icons.push(...dropDownStateIcons);
     }
 
-    const { headerIcon } = this._table._getHeaderLayoutMap(col, row);
+    const { headerIcon } = this._table._getHeaderLayoutMap(col, row) as HeaderData;
     // captionIcon && icons.push(captionIcon);
 
     const hierarchyIcon = this.getHierarchyIcon(col, row);
@@ -180,13 +209,21 @@ export class HeaderHelper {
 
   getSortIcon(order: SortOrder | undefined, _table: BaseTableAPI, col: number, row: number): ColumnIconOption | null {
     // this.showSortIcon = undefined;
-    const icon = order === 'asc' ? this.downIcon : order === 'desc' ? this.upIcon : this.normalIcon;
+    const icon = order === 'asc' ? this.upIcon : order === 'desc' ? this.downIcon : this.normalIcon;
 
     const headerC = _table.getHeaderDefine(col, row) as any;
+    let _showSort;
+    if (headerC) {
+      if (typeof headerC.showSort === 'function') {
+        _showSort = headerC.showSort({ col, row, table: this._table });
+      } else {
+        _showSort = headerC.showSort;
+      }
+    }
     if (
       !headerC ||
-      headerC.showSort === false ||
-      (!isValid(headerC.showSort) && !headerC.sort) ||
+      _showSort === false ||
+      (!isValid(_showSort) && !headerC.sort) ||
       (headerC.columns && headerC.columns.length > 0)
     ) {
       return null;
@@ -194,16 +231,52 @@ export class HeaderHelper {
     return icon;
   }
 
-  private getDropDownStateIcons(_table: BaseTableAPI, col: number, row: number): ColumnIconOption[] {
+  getSortIconForPivotTable(
+    order: SortOrder | undefined,
+    _table: BaseTableAPI,
+    col: number,
+    row: number
+  ): ColumnIconOption | null {
     const headerC = _table.getHeaderDefine(col, row) as any;
-    const headerL = _table._getHeaderLayoutMap(col, row);
-    const { dropDownMenu } = headerL;
+    let _showSort;
+    if (headerC) {
+      if (typeof headerC.showSort === 'function') {
+        _showSort = headerC.showSort({ col, row, table: this._table });
+      } else {
+        _showSort = headerC.showSort;
+      }
+    }
+    if (
+      !headerC ||
+      _showSort === false ||
+      (!isValid(_showSort) && !headerC.sort) ||
+      (headerC.columns && headerC.columns.length > 0)
+    ) {
+      return null;
+    }
+    const icon =
+      order?.toUpperCase() === 'ASC' ? this.upIcon : order?.toUpperCase() === 'DESC' ? this.downIcon : this.normalIcon;
+    // const icon = order === 'ASC' ? this.downIcon : this.upIcon;
+    return icon;
+  }
+
+  private getDropDownStateIcons(_table: BaseTableAPI, col: number, row: number): ColumnIconOption[] {
+    const headerC = _table.getHeaderDefine(col, row) as ColumnDefine;
+    const headerL = _table._getHeaderLayoutMap(col, row) as HeaderData;
+    let { dropDownMenu } = headerL as HeaderData;
+    if (typeof dropDownMenu === 'function') {
+      dropDownMenu = dropDownMenu({ row, col, table: _table });
+    }
+    let globalDropDownMenu = _table.globalDropDownMenu;
+    if (typeof globalDropDownMenu === 'function') {
+      globalDropDownMenu = globalDropDownMenu({ row, col, table: _table });
+    }
     const results: ColumnIconOption[] = [];
     if (
       (Array.isArray(dropDownMenu) && dropDownMenu.length) || // header中配置dropDownMenu
-      (Array.isArray(_table.globalDropDownMenu) && _table.globalDropDownMenu.length && !headerC?.columns?.length) // 全局配置dropDownMenu，只在最下级表头展示
+      (Array.isArray(globalDropDownMenu) && globalDropDownMenu.length && !headerC?.columns?.length) // 全局配置dropDownMenu，只在最下级表头展示
     ) {
-      const menus = dropDownMenu || _table.globalDropDownMenu;
+      const menus = dropDownMenu || globalDropDownMenu;
       let highlightIndex = -1;
       let subHighlightIndex = -1;
       for (let i = 0; i < menus.length; i++) {
@@ -238,11 +311,9 @@ export class HeaderHelper {
       if (highlightIndex !== -1) {
         let menu;
         if (subHighlightIndex !== -1) {
-          menu = ((dropDownMenu || _table.globalDropDownMenu)[highlightIndex] as any).children[
-            subHighlightIndex
-          ] as any;
+          menu = (menus[highlightIndex] as any).children[subHighlightIndex];
         } else {
-          menu = (dropDownMenu || _table.globalDropDownMenu)[highlightIndex] as any;
+          menu = menus[highlightIndex];
         }
 
         if (menu.stateIcon) {
@@ -325,7 +396,7 @@ export class HeaderHelper {
   }
 
   getHierarchyIcon(col: number, row: number) {
-    const { hierarchyState } = this._table._getHeaderLayoutMap(col, row);
+    const { hierarchyState } = this._table._getHeaderLayoutMap(col, row) as HeaderData;
     if (hierarchyState) {
       if (hierarchyState === HierarchyState.expand) {
         //展开状态 应该显示-号
@@ -337,7 +408,9 @@ export class HeaderHelper {
     }
     return undefined;
   }
-
+  getHierarchyIconWidth() {
+    return this.expandIcon.width + (this.expandIcon.marginLeft ?? 0) + (this.expandIcon.marginRight ?? 0);
+  }
   private checkDropDownIcon(_table: BaseTableAPI, col: number, row: number) {
     /*
      * dropDownMenu有三种状态：
@@ -346,20 +419,29 @@ export class HeaderHelper {
      * 3. header中dropDownMenu为空数组 =》 icon不展示
      */
     if (_table.isPivotTable()) {
-      const headerC = _table._getHeaderLayoutMap(col, row) as any;
+      const headerC = _table._getHeaderLayoutMap(col, row) as HeaderData;
+      let dropDownMenu = headerC.dropDownMenu;
+      if (typeof dropDownMenu === 'function') {
+        dropDownMenu = dropDownMenu({ row, col, table: _table });
+      }
       if (
-        Array.isArray(headerC.dropDownMenu) &&
-        headerC.dropDownMenu.length // header中配置dropDownMenu
+        Array.isArray(dropDownMenu) &&
+        dropDownMenu.length // header中配置dropDownMenu
       ) {
         return true;
       }
     } else {
-      const headerC = _table.getHeaderDefine(col, row) as any;
+      const headerC = _table.getHeaderDefine(col, row) as ColumnDefine;
+      const dropDownMenu = headerC.dropDownMenu;
+      let globalDropDownMenu = _table.globalDropDownMenu;
+      if (typeof globalDropDownMenu === 'function') {
+        globalDropDownMenu = globalDropDownMenu({ row, col, table: _table });
+      }
       if (
-        (Array.isArray(headerC.dropDownMenu) && headerC.dropDownMenu.length) || // header中配置dropDownMenu
+        (Array.isArray(dropDownMenu) && dropDownMenu.length) || // header中配置dropDownMenu
         ((!Array.isArray(headerC.dropDownMenu) || headerC.dropDownMenu.length !== 0) && // header中dropDownMenu为空数组，不显示
-          Array.isArray(_table.globalDropDownMenu) &&
-          _table.globalDropDownMenu.length && // 全局配置dropDownMenu
+          Array.isArray(globalDropDownMenu) &&
+          globalDropDownMenu.length && // 全局配置dropDownMenu
           !headerC?.columns?.length) // 只在最下级表头展示
       ) {
         return true;
@@ -382,5 +464,19 @@ export class HeaderHelper {
       case 'checkbox':
         return CheckboxStyle;
     }
+  }
+
+  setTableColumnsEditor() {
+    const setEditor = (colDefines: ColumnsDefine, setColumns: ColumnsDefine) => {
+      colDefines?.forEach((colDefine, index) => {
+        if (colDefine.editor) {
+          setColumns[index].editor = colDefine.editor;
+        }
+        if (colDefine.columns) {
+          setEditor(colDefine.columns, setColumns[index].columns);
+        }
+      });
+    };
+    setEditor((this._table as ListTable).options.columns, (this._table as ListTable).internalProps.columns);
   }
 }

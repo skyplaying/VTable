@@ -73,7 +73,7 @@ The specific configuration content can be viewed at: https://github.com/VisActor
 The specific configuration content can be viewed at: https://github.com/VisActor/VTable/blob/develop/packages/vtable/src/themes/ARCO.ts
 
     // 使用默认主题
-    option.theme = vTable.themes.ARCO;
+    option.theme = VTable.themes.ARCO;
 
     const tableInstance = new VTable.ListTable(option);
 
@@ -82,7 +82,7 @@ The specific configuration content can be viewed at: https://github.com/VisActor
 The specific configuration content can be viewed at: https://github.com/VisActor/VTable/blob/develop/packages/vtable/src/themes/DARK.ts
 
     // 使用默认主题
-    option.theme = vTable.themes.DARK;
+    option.theme = VTable.themes.DARK;
 
     const tableInstance = new VTable.ListTable(option);
 
@@ -91,7 +91,7 @@ The specific configuration content can be viewed at: https://github.com/VisActor
 The specific configuration content can be viewed at: https://github.com/VisActor/VTable/blob/develop/packages/vtable/src/themes/BRIGHT.ts
 
     // 使用默认主题
-    option.theme = vTable.themes.BRIGHT;
+    option.theme = VTable.themes.BRIGHT;
 
     const tableInstance = new VTable.ListTable(option);
 
@@ -100,7 +100,7 @@ The specific configuration content can be viewed at: https://github.com/VisActor
 The specific configuration content can be viewed at: https://github.com/VisActor/VTable/blob/develop/packages/vtable/src/themes/SIMPLIFY.ts
 
     // 使用默认主题
-    option.theme = vTable.themes.SIMPLIFY;
+    option.theme = VTable.themes.SIMPLIFY;
 
     const tableInstance = new VTable.ListTable(option);
 
@@ -114,7 +114,7 @@ Such as extending for DEFAULT
 
 ```
 
-option.theme = vTable.themes.DEFAULT.extends({ headerStyle:{ color: 'red'}})
+option.theme = VTable.themes.DEFAULT.extends({ headerStyle:{ color: 'red'}})
 
 const tableInstance = new vTable.ListTable(option);
 ```
@@ -193,7 +193,7 @@ const theme = {
     shadowColor: 'rgba(00, 24, 47, 0.06)'
   },
   //拖拽列宽分割线样式
-  columnResizer: {
+  columnResize: {
     lineWidth: 1,
     lineColor: '#416EFF',
     bgColor: '#D9E2FF',
@@ -1189,6 +1189,7 @@ const option = {
   },
   widthMode: 'standard',
   rowHierarchyIndent: 20,
+  rowHierarchyTextStartAlignment: true,
   theme: {
     defaultStyle: {
       borderLineWidth: 0

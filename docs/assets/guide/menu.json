@@ -28,8 +28,22 @@
             "zh": "快速上手",
             "en": "Getting_Started"
           }
+        },
+        {
+          "path": "AI_tools_help",
+          "title": {
+            "zh": "AI工具助力VTable",
+            "en": "AI tools help"
+          }
         }
       ]
+    },
+    {
+      "path": "Contribution_Guide",
+      "title": {
+        "zh": "贡献指南",
+        "en": "Contribution Guide"
+      }
     },
     {
       "path": "table_type",
@@ -72,6 +86,13 @@
                 "zh": "树形结构",
                 "en": "tree list"
               }
+            },
+            {
+              "path": "group_list",
+              "title": {
+                "zh": "分组展示",
+                "en": "group list"
+              }
             }
           ]
         },
@@ -106,8 +127,15 @@
             {
               "path": "pivot_table_tree",
               "title": {
-                "zh": "树形结构",
-                "en": "pivot table tree"
+                "zh": "表头树形展示",
+                "en": "pivot table tree show"
+              }
+            },
+            {
+              "path": "custom_header",
+              "title": {
+                "zh": "自定义表头",
+                "en": "pivot table custom header"
               }
             }
           ]
@@ -117,6 +145,80 @@
           "title": {
             "zh": "透视组合图表",
             "en": "pivot chart"
+          }
+        }
+      ]
+    },
+    {
+      "path": "gantt",
+      "title": {
+        "zh": "甘特图教程",
+        "en": "gantt chart"
+      },
+      "children": [
+        {
+          "path": "Getting_Started",
+          "title": {
+            "zh": "快速上手",
+            "en": "Getting Started"
+          }
+        },
+        {
+          "path": "introduction",
+          "title": {
+            "zh": "甘特图介绍",
+            "en": "gantt introduction"
+          }
+        },
+        {
+          "path": "gantt_customLayout",
+          "title": {
+            "zh": "自定义渲染",
+            "en": "Custom Render"
+          }
+        },
+        {
+          "path": "gantt_edit",
+          "title": {
+            "zh": "甘特图编辑",
+            "en": "Gantt Edit"
+          }
+        },
+        {
+          "path": "subtask_layout",
+          "title": {
+            "zh": "子任务布局",
+            "en": "Subtask Layout"
+          }
+        }
+      ]
+    },
+    {
+      "path": "calendar",
+      "title": {
+        "zh": "日历图",
+        "en": "calendar"
+      },
+      "children": [
+        {
+          "path": "Getting_Started",
+          "title": {
+            "zh": "快速上手",
+            "en": "Getting Started"
+          }
+        },
+        {
+          "path": "introduction",
+          "title": {
+            "zh": "日历图介绍",
+            "en": "calendar introduction"
+          }
+        },
+        {
+          "path": "calendar_custom_layout",
+          "title": {
+            "zh": "日历图自定义单元格",
+            "en": "calendar custom layout"
           }
         }
       ]
@@ -171,6 +273,27 @@
           }
         },
         {
+          "path": "radio",
+          "title": {
+            "zh": "单选框",
+            "en": "radio"
+          }
+        },
+        {
+          "path": "switch",
+          "title": {
+            "zh": "开关",
+            "en": "switch"
+          }
+        },
+        {
+          "path": "button",
+          "title": {
+            "zh": "按钮",
+            "en": "button"
+          }
+        },
+        {
           "path": "sparkline",
           "title": {
             "zh": "迷你图",
@@ -205,13 +328,29 @@
           "title": {
             "zh": "排序",
             "en": "sort"
-          }
+          },
+          "children": [
+            {
+              "path": "list_sort",
+              "title": {
+                "zh": "基本表格排序",
+                "en": "sort In ListTable"
+              }
+            },
+            {
+              "path": "pivot_sort",
+              "title": {
+                "zh": "透视表格排序",
+                "en": "sort In PivotTable"
+              }
+            }
+          ]
         },
         {
-          "path": "frozen_column",
+          "path": "frozen_column_row",
           "title": {
             "zh": "冻结",
-            "en": "frozen column"
+            "en": "frozen column & row"
           }
         },
         {
@@ -233,6 +372,13 @@
           "title": {
             "zh": "单元格合并",
             "en": "cell merge"
+          }
+        },
+        {
+          "path": "row_series_number",
+          "title": {
+            "zh": "行序号",
+            "en": "row series number"
           }
         }
       ]
@@ -305,6 +451,36 @@
       ]
     },
     {
+      "path": "animation",
+      "title": {
+        "zh": "动画",
+        "en": "Animation"
+      },
+      "children": [
+        {
+          "path": "appear_animation",
+          "title": {
+            "zh": "入场动画",
+            "en": "appear animationt"
+          }
+        },
+        {
+          "path": "scroll_animation",
+          "title": {
+            "zh": "滚动动画",
+            "en": "scroll animationt"
+          }
+        },
+        {
+          "path": "carousel_animation",
+          "title": {
+            "zh": "轮播动画",
+            "en": "carousel animationt"
+          }
+        }
+      ]
+    },
+    {
       "path": "Event",
       "title": {
         "zh": "事件",
@@ -349,6 +525,20 @@
           }
         },
         {
+          "path": "react-custom-component",
+          "title": {
+            "zh": "React自定义组件",
+            "en": "React Custom Component"
+          }
+        },
+        {
+          "path": "vue-custom-component",
+          "title": {
+            "zh": "Vue自定义组件",
+            "en": "Vue Custom Component"
+          }
+        },
+        {
           "path": "custom_render",
           "title": {
             "zh": "单元格自定义渲染(CustomRender)",
@@ -390,6 +580,13 @@
           "title": {
             "zh": "编辑表格数据",
             "en": "edit cell"
+          }
+        },
+        {
+          "path": "fill_handle",
+          "title": {
+            "zh": "填充柄",
+            "en": "fill handle"
           }
         }
       ]
@@ -485,6 +682,13 @@
       ]
     },
     {
+      "path": "Load_on_Demand",
+      "title": {
+        "zh": "按需加载",
+        "en": "Load on Demand"
+      }
+    },
+    {
       "path": "search",
       "title": {
         "zh": "搜索",
@@ -515,6 +719,29 @@
       ]
     },
     {
+      "path": "plugin",
+      "title": {
+        "zh": "插件",
+        "en": "plugin"
+      },
+      "children": [
+        {
+          "path": "invert-highlight",
+          "title": {
+            "zh": "反选高亮",
+            "en": "Invert Highlight"
+          }
+        },
+        {
+          "path": "header-highlight",
+          "title": {
+            "zh": "表头高亮",
+            "en": "Header Highlight"
+          }
+        }
+      ]
+    },
+    {
       "path": "Developer_Ecology",
       "title": {
         "zh": "开发者生态",
@@ -529,10 +756,24 @@
           }
         },
         {
+          "path": "openinula",
+          "title": {
+            "zh": "Openinula-VTable",
+            "en": "Openinula-VTable"
+          }
+        },
+        {
           "path": "vue",
           "title": {
-            "zh": "Vue VTable",
-            "en": "Vue VTable"
+            "zh": "Vue-VTable",
+            "en": "Vue-VTable"
+          }
+        },
+        {
+          "path": "node",
+          "title": {
+            "zh": "NodeJS 服务端渲染",
+            "en": "NodeJS Server-Side Rendering"
           }
         }
       ]

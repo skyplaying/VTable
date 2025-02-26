@@ -1,6 +1,6 @@
 {
   "name": "@visactor/vtable",
-  "version": "0.21.3",
+  "version": "1.17.0",
   "description": "canvas table width high performance",
   "keywords": [
     "grid",
@@ -19,7 +19,15 @@
     "url": "https://VisActor.io/"
   },
   "license": "MIT",
-  "sideEffects": true,
+  "sideEffects": [
+    "./src/ListTable-all.js",
+    "./src/ListTable-simple.js",
+    "./src/PivotTable-all.js",
+    "./src/PivotTable-simple.js",
+    "./src/PivotChart.js",
+    "./src/index.js",
+    "./src/scenegraph/scenegraph.js"
+  ],
   "main": "cjs/index.js",
   "module": "es/index.js",
   "types": "es/index.d.ts",
@@ -28,12 +36,6 @@
     "es",
     "dist"
   ],
-  "exports": {
-    ".": {
-      "require": "./cjs/index.js",
-      "import": "./es/index.js"
-    }
-  },
   "scripts": {
     "demo": "vite serve examples",
     "site-demo": "vite serve site-demo",
@@ -41,7 +43,7 @@
     "eslint": "eslint --debug --fix src/",
     "build": "bundle --clean",
     "dev": "bundle --clean -f es -w",
-    "start": "vite ./vite",
+    "start": "vite serve examples",
     "test": "jest --silent",
     "test-cov": "jest --coverage",
     "ci": "ts-node --transpileOnly --skipProject ./scripts/trigger-test.ts",
@@ -50,18 +52,20 @@
   },
   "dependencies": {
     "@visactor/vtable-editors": "workspace:*",
-    "@visactor/vrender-core": "0.18.2-alpha.1",
-    "@visactor/vrender-kits": "0.18.2-alpha.1",
-    "@visactor/vrender-components": "0.18.2-alpha.1",
-    "@visactor/vutils-extension": "~1.8.5",
-    "@visactor/vutils": "~0.18.1",
+    "@visactor/vrender-core": "0.21.9-alpha.1",
+    "@visactor/vrender-kits": "0.21.9-alpha.1",
+    "@visactor/vrender-components": "0.21.9-alpha.1",
+    "@visactor/vutils": "~0.19.1",
     "@visactor/vscale": "~0.18.1",
     "@visactor/vdataset": "~0.18.1",
-    "cssfontparser": "^1.2.1"
+    "@visactor/vutils-extension": "~1.11.5",
+    "cssfontparser": "^1.2.1",
+    "gifuct-js": "2.1.2",
+    "lodash": "4.17.21"
   },
   "devDependencies": {
     "luxon": "*",
-    "@visactor/vchart": "1.10.0",
+    "@visactor/vchart": "1.13.3-alpha.2",
     "@internal/bundler": "workspace:*",
     "@internal/eslint-config": "workspace:*",
     "@internal/ts-config": "workspace:*",
@@ -81,6 +85,7 @@
     "@types/mocha": "9.0.0",
     "@types/node": "*",
     "@types/offscreencanvas": "2019.6.4",
+    "@types/lodash": "4.14.182",
     "chai": "4.3.4",
     "jest": "^26.0.0",
     "jest-electron": "^0.1.12",

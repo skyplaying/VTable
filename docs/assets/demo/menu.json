@@ -80,6 +80,20 @@
           }
         },
         {
+          "path": "list-table-group",
+          "title": {
+            "zh": "基本表格分组展示",
+            "en": "List Table Group"
+          }
+        },
+        {
+          "path": "list-table-group-checkbox",
+          "title": {
+            "zh": "基本表格分组复选框",
+            "en": "List Table Group Checkbox"
+          }
+        },
+        {
           "path": "transpose-table",
           "title": {
             "zh": "转置表格",
@@ -114,17 +128,15 @@
         {
           "path": "pivot-analysis-table-tree",
           "title": {
-            "zh": "透视分析表格树形展示",
-            "en": "Pivot Analysis Tree Table"
-          },
-          "meta": {
-            "title": "Pivot Analysis Tree Table",
-            "keywords": "",
-            "category": "demo",
-            "group": "table-type",
-            "cover": "https://lf9-dp-fe-cms-tos.byteorg.com/obj/bit-cloud/VTable/preview/pivot-analysis-table-tree.png",
-            "link": "'../../guide/table_type/Pivot_table/pivot_table_useage'",
-            "option": ""
+            "zh": "透视表行头树形展示",
+            "en": "Pivot Table Row Header Tree Mode"
+          }
+        },
+        {
+          "path": "pivot-analysis-table-grid-tree",
+          "title": {
+            "zh": "透视表平铺树形展示",
+            "en": "Pivot Table Grid Tree Mode"
           }
         },
         {
@@ -167,6 +179,20 @@
           }
         },
         {
+          "path": "pivot-table-tree-lazy-load",
+          "title": {
+            "zh": "透视表树形懒加载子节点（自定义表头结构）",
+            "en": "Pivot Table Tree Lazy Load"
+          }
+        },
+        {
+          "path": "pivot-table-virtual-header",
+          "title": {
+            "zh": "透视表自定义表头（虚拟节点）",
+            "en": "Pivot Table Virtual Header"
+          }
+        },
+        {
           "path": "pivot-table-multi-tree",
           "title": {
             "zh": "透视表多列树形展示",
@@ -194,6 +220,150 @@
           "title": {
             "zh": "透视组合图（饼图）",
             "en": "Pivot Chart Pie"
+          }
+        },
+        {
+          "path": "pivot-chart-radar",
+          "title": {
+            "zh": "透视组合图（雷达图）",
+            "en": "Pivot Chart Radar"
+          }
+        },
+        {
+          "path": "pivot-chart-scatter",
+          "title": {
+            "zh": "透视组合图（散点图）",
+            "en": "Pivot Chart Scatter"
+          }
+        },
+        {
+          "path": "pivot-chart-wordCloud",
+          "title": {
+            "zh": "透视组合图（词云图）",
+            "en": "Pivot Chart Word Cloud"
+          }
+        }
+      ]
+    },
+    {
+      "path": "gantt",
+      "title": {
+        "zh": "甘特图",
+        "en": "gantt"
+      },
+      "children": [
+        {
+          "path": "gantt-basic",
+          "title": {
+            "zh": "甘特图基础用法",
+            "en": "Gantt Basic"
+          }
+        },
+        {
+          "path": "gantt-customLayout",
+          "title": {
+            "zh": "甘特图自定义渲染",
+            "en": "Gantt Custom Layout"
+          }
+        },
+        {
+          "path": "gantt-edit",
+          "title": {
+            "zh": "甘特图编辑数据",
+            "en": "Gantt Edit"
+          }
+        },
+        {
+          "path": "gantt-dependency-link-line",
+          "title": {
+            "zh": "甘特图依赖线（关联线）",
+            "en": "Gantt Dependency Link Line"
+          }
+        },
+        {
+          "path": "gantt-dependency-link-create",
+          "title": {
+            "zh": "创建依赖线（关联线）",
+            "en": "Create Dependency Link Line"
+          }
+        },
+        {
+          "path": "gantt-interaction-drag-table-width",
+          "title": {
+            "zh": "甘特图交互——拖拽表格宽度",
+            "en": "Gantt Interaction —— Drag Table Width"
+          }
+        },
+        {
+          "path": "gantt-interaction-drag-taskBar",
+          "title": {
+            "zh": "甘特图交互——拖拽任务条",
+            "en": "Gantt Interaction —— Drag TaskBar"
+          }
+        },
+        {
+          "path": "gantt-interaction-creation-button",
+          "title": {
+            "zh": "甘特图交互——创建排期",
+            "en": "Gantt Interaction —— Create Schedule"
+          }
+        },
+        {
+          "path": "gantt-taskShowMode",
+          "title": {
+            "zh": "甘特图子任务布局模式",
+            "en": "Gantt Subtask Show Mode"
+          }
+        },
+        {
+          "path": "gantt-table-mergeCell",
+          "title": {
+            "zh": "任务名称单元格合并",
+            "en": "Gantt Task Merge Cell"
+          }
+        },
+        {
+          "path": "gantt-hour",
+          "title": {
+            "zh": "以小时为单元的任务甘特图",
+            "en": "Gantt Task Hour Unit"
+          }
+        },
+        {
+          "path": "gantt-hide-hour-scale",
+          "title": {
+            "zh": "隐藏底部时间刻度",
+            "en": "Gantt Hide Hour Scale"
+          }
+        }
+      ]
+    },
+    {
+      "path": "calendar",
+      "title": {
+        "zh": "日历图",
+        "en": "calendar"
+      },
+      "children": [
+        {
+          "path": "calendar-basic",
+          "title": {
+            "zh": "日历图基础用法",
+            "en": "Calendar Basic"
+          }
+        },
+        {
+          "path": "calendar-custom-event",
+          "title": {
+            "zh": "日历图自定义日程",
+            "en": "Calendar Custom Event"
+          }
+        },
+        {
+          "path": "calendar-custom-layout",
+          "title": {
+            "zh": "日历图自定义单元格",
+            "en": "Calendar Custom Layout"
           }
         }
       ]
@@ -254,6 +424,36 @@
           }
         },
         {
+          "path": "radio",
+          "title": {
+            "zh": "单选框类型",
+            "en": "Radio Type"
+          },
+          "meta": {
+            "title": "Radio Type",
+            "keywords": "",
+            "category": "demo",
+            "group": "Cell Type",
+            "cover": "https://lf9-dp-fe-cms-tos.byteorg.com/obj/bit-cloud/VTable/preview/radio.png",
+            "link": "'../../guide/column_type/radio'",
+            "option": ""
+          }
+        },
+        {
+          "path": "switch",
+          "title": {
+            "zh": "开关类型",
+            "en": "Switch Type"
+          }
+        },
+        {
+          "path": "button",
+          "title": {
+            "zh": "按钮类型",
+            "en": "Button Type"
+          }
+        },
+        {
           "path": "list-chart",
           "title": {
             "zh": "基本表格集成图表",
@@ -272,6 +472,13 @@
           "title": {
             "zh": "透视表图表展示",
             "en": "Chart Type In PivotTable"
+          }
+        },
+        {
+          "path": "pivot-sparkline",
+          "title": {
+            "zh": "透视表迷你图展示",
+            "en": "Sparkline In PivotTable"
           }
         },
         {
@@ -334,7 +541,23 @@
             "category": "demo",
             "group": "Basic Features",
             "cover": "https://lf9-dp-fe-cms-tos.byteorg.com/obj/bit-cloud/VTable/preview/frozen-col.gif",
-            "link": "'../../guide/basic_function/frozen_column'",
+            "link": "'../../guide/basic_function/frozen_column_row'",
+            "option": ""
+          }
+        },
+        {
+          "path": "frozen-row",
+          "title": {
+            "zh": "冻结行",
+            "en": "frozen row"
+          },
+          "meta": {
+            "title": "frozen row",
+            "keywords": "",
+            "category": "demo",
+            "group": "Basic Features",
+            "cover": "https://lf9-dp-fe-cms-tos.byteorg.com/obj/bit-cloud/VTable/preview/frozen-row.gif",
+            "link": "'../../guide/basic_function/frozen_column_row'",
             "option": ""
           }
         },
@@ -343,15 +566,13 @@
           "title": {
             "zh": "排序",
             "en": "Sort"
-          },
-          "meta": {
-            "title": "Sort",
-            "keywords": "",
-            "category": "demo",
-            "group": "Basic Features",
-            "cover": "https://lf9-dp-fe-cms-tos.byteorg.com/obj/bit-cloud/VTable/preview/sort.gif",
-            "link": "'../../guide/basic_function/sort'",
-            "option": ""
+          }
+        },
+        {
+          "path": "pre-sort",
+          "title": {
+            "zh": "预排序",
+            "en": "Pre Sort"
           }
         },
         {
@@ -359,15 +580,6 @@
           "title": {
             "zh": "合并单元格",
             "en": "Merge Cells"
-          },
-          "meta": {
-            "title": "Merge Cells",
-            "keywords": "",
-            "category": "demo",
-            "group": "Basic Features",
-            "cover": "https://lf9-dp-fe-cms-tos.byteorg.com/obj/bit-cloud/VTable/preview/merge.png",
-            "link": "",
-            "option": ""
           }
         },
         {
@@ -375,15 +587,6 @@
           "title": {
             "zh": "自定义合并单元格",
             "en": "Custom Merge Cells"
-          },
-          "meta": {
-            "title": "Custom Merge Cells",
-            "keywords": "",
-            "category": "demo",
-            "group": "Basic Features",
-            "cover": "https://lf9-dp-fe-cms-tos.byteorg.com/obj/bit-cloud/VTable/preview/custom-merge-custom.png",
-            "link": "",
-            "option": ""
           }
         },
         {
@@ -391,15 +594,6 @@
           "title": {
             "zh": "适应容器高度",
             "en": "Row Height Mode - Adapt to Content"
-          },
-          "meta": {
-            "title": "Row Height Mode - Adapt to Content",
-            "keywords": "",
-            "category": "demo",
-            "group": "Basic Features",
-            "cover": "https://lf9-dp-fe-cms-tos.byteorg.com/obj/bit-cloud/VTable/preview/width-mode-adaptive.png",
-            "link": "'../../guide/basic_function/row_height_column_width'",
-            "option": ""
           }
         },
         {
@@ -449,6 +643,27 @@
             "link": "'../../guide/basic_function/row_height_column_width'",
             "option": ""
           }
+        },
+        {
+          "path": "row-series-number",
+          "title": {
+            "zh": "行序号",
+            "en": "row series number"
+          }
+        },
+        {
+          "path": "pagination",
+          "title": {
+            "zh": "分页（翻页）",
+            "en": "pagination"
+          }
+        },
+        {
+          "path": "pivot-table-corner-title",
+          "title": {
+            "zh": "透视表角头显示维度名",
+            "en": "Pivot Table corner title"
+          }
         }
       ]
     },
@@ -473,6 +688,13 @@
             "cover": "https://lf9-dp-fe-cms-tos.byteorg.com/obj/bit-cloud/VTable/preview/select.png",
             "link": "'../../guide/interaction_and_event/select'",
             "option": ""
+          }
+        },
+        {
+          "path": "select-highlight",
+          "title": {
+            "zh": "选中整行高亮",
+            "en": "Select Highlight"
           }
         },
         {
@@ -510,8 +732,8 @@
         {
           "path": "context-menu",
           "title": {
-            "zh": "右键菜单",
-            "en": "Right click menu"
+            "zh": "右键菜单(复制/粘贴/删除)",
+            "en": "Right click menu(copy/paste/delete)"
           },
           "meta": {
             "title": "Right click menu",
@@ -531,6 +753,13 @@
           }
         },
         {
+          "path": "resize-row-height",
+          "title": {
+            "zh": "调整行高",
+            "en": "Adjust row height"
+          }
+        },
+        {
           "path": "dblclick-resize-col-width",
           "title": {
             "zh": "双击列宽自动适应内容",
@@ -542,15 +771,13 @@
           "title": {
             "zh": "移动表头位置",
             "en": "Move header position"
-          },
-          "meta": {
-            "title": "Move header position",
-            "keywords": "",
-            "category": "demo",
-            "group": "Interaction",
-            "cover": "https://lf9-dp-fe-cms-tos.byteorg.com/obj/bit-cloud/VTable/preview/move-header-position.gif",
-            "link": "'../../guide/interaction_and_event/drag_header'",
-            "option": ""
+          }
+        },
+        {
+          "path": "move-row-position",
+          "title": {
+            "zh": "移动行",
+            "en": "Move row position"
           }
         },
         {
@@ -572,6 +799,20 @@
           "title": {
             "zh": "复制粘贴",
             "en": "copy paste cell value"
+          }
+        },
+        {
+          "path": "head-highlight",
+          "title": {
+            "zh": "高亮表头",
+            "en": "head highlight"
+          }
+        },
+        {
+          "path": "invert-highlight",
+          "title": {
+            "zh": "反选高亮",
+            "en": "invert highlight"
           }
         }
       ]
@@ -739,6 +980,63 @@
       ]
     },
     {
+      "path": "animation",
+      "title": {
+        "zh": "动画",
+        "en": "animation"
+      },
+      "children": [
+        {
+          "path": "appear-animation",
+          "title": {
+            "zh": "入场动画",
+            "en": "Appear Animation"
+          },
+          "meta": {
+            "title": "Appear Animation",
+            "keywords": "",
+            "category": "demo",
+            "group": "Animation",
+            "cover": "https://lf9-dp-fe-cms-tos.byteorg.com/obj/bit-cloud/VTable/preview/appear-animation.gif",
+            "link": "'../../guide/custom_define/custom_icon'",
+            "option": ""
+          }
+        },
+        {
+          "path": "scroll-animation",
+          "title": {
+            "zh": "滚动动画",
+            "en": "Scroll Animation"
+          },
+          "meta": {
+            "title": "Scroll Animation",
+            "keywords": "",
+            "category": "demo",
+            "group": "Animation",
+            "cover": "https://lf9-dp-fe-cms-tos.byteorg.com/obj/bit-cloud/VTable/preview/scroll-animation.gif",
+            "link": "'../../guide/custom_define/custom_icon'",
+            "option": ""
+          }
+        },
+        {
+          "path": "carousel-animation",
+          "title": {
+            "zh": "轮播动画",
+            "en": "Carousel Animation"
+          },
+          "meta": {
+            "title": "Carousel Animation",
+            "keywords": "",
+            "category": "demo",
+            "group": "Animation",
+            "cover": "https://lf9-dp-fe-cms-tos.byteorg.com/obj/bit-cloud/VTable/preview/scroll-animation.gif",
+            "link": "'../../guide/custom_define/custom_icon'",
+            "option": ""
+          }
+        }
+      ]
+    },
+    {
       "path": "custom-render",
       "title": {
         "zh": "自定义能力",
@@ -856,6 +1154,13 @@
             "link": "'../../guide/custom_define/custom_style'",
             "option": ""
           }
+        },
+        {
+          "path": "complex-corner",
+          "title": {
+            "zh": "自定义角头单元格",
+            "en": "Custom Corner Cell"
+          }
         }
       ]
     },
@@ -892,6 +1197,13 @@
           "title": {
             "zh": "动态新增删除数据",
             "en": "Dynamically adjust data"
+          }
+        },
+        {
+          "path": "fill-handle",
+          "title": {
+            "zh": "填充柄效果",
+            "en": "fill handle effect"
           }
         }
       ]
@@ -957,6 +1269,27 @@
           "title": {
             "zh": "指标聚合方式",
             "en": "Indicator Aggregation Type"
+          }
+        },
+        {
+          "path": "pivot-analysis-calculatedField",
+          "title": {
+            "zh": "计算字段",
+            "en": "Calculate Field"
+          }
+        },
+        {
+          "path": "pivot-analysis-customAggregator",
+          "title": {
+            "zh": "自定义聚合类型",
+            "en": "Custom Aggregation Type"
+          }
+        },
+        {
+          "path": "pivot-analysis-table-drill",
+          "title": {
+            "zh": "透视表上钻下钻",
+            "en": "Pivot Table Drill"
           }
         }
       ]
@@ -1125,6 +1458,13 @@
             "link": "",
             "option": ""
           }
+        },
+        {
+          "path": "empty-tip",
+          "title": {
+            "zh": "空数据提示",
+            "en": "empty tip"
+          }
         }
       ]
     },
@@ -1149,6 +1489,20 @@
             "cover": "https://lf9-dp-fe-cms-tos.byteorg.com/obj/bit-cloud/VTable/preview/pivot-table.png",
             "link": "'../../guide/export/excel'",
             "option": ""
+          }
+        },
+        {
+          "path": "table-export-ignore-icon",
+          "title": {
+            "zh": "表格导出（忽略图标）",
+            "en": "table export(ignore-icon)"
+          }
+        },
+        {
+          "path": "table-export-format",
+          "title": {
+            "zh": "表格导出（格式化）",
+            "en": "table export(format)"
           }
         }
       ]
@@ -1300,6 +1654,13 @@
           "title": {
             "zh": "销售数据气泡图",
             "en": "Sales Bubble"
+          }
+        },
+        {
+          "path": "music-play",
+          "title": {
+            "zh": "歌曲播放排行榜",
+            "en": "Song Play Ranking"
           }
         }
       ]

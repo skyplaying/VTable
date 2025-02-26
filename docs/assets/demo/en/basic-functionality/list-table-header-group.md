@@ -3,7 +3,7 @@ category: examples
 group: Basic Features
 title: List Table - Header Group
 cover: https://lf9-dp-fe-cms-tos.byteorg.com/obj/bit-cloud/VTable/preview/list-table-header-group.png
-link: '../guide/table-type/list-table'
+link: table-type/list-table
 option: ListTable-columns-text#columns
 ---
 
@@ -13,13 +13,13 @@ Configure columns as a nested multi-layer structure to achieve multi-layer heade
 
 ## Key Configurations
 
-*   columns
+- columns
 
 ## Code demo
 
 ```javascript livedemo template=vtable
 let tableInstance;
-const records= [
+const records = [
   {
     id: 1,
     name1: 'a1',
@@ -50,52 +50,50 @@ const records= [
     name2: 'e2',
     name3: 'e3'
   }
-  ];
+];
 
-const columns =[
-   {
-      field: 'id',
-      caption: 'ID',
-      width: 100
-    },
-    {
-      caption: 'Name',
-      columns:[
+const columns = [
+  {
+    field: 'id',
+    title: 'ID',
+    width: 100
+  },
+  {
+    title: 'Name',
+    columns: [
+      {
+        field: 'name1',
+        title: 'name1',
+        width: 100
+      },
+      {
+        title: 'name-level-2',
+        width: 150,
+        columns: [
           {
-            field: 'name1',
-            caption: 'name1',
+            field: 'name2',
+            title: 'name2',
             width: 100
           },
           {
-            caption: 'name-level-2',
-            width: 150,
-            columns:[
-                  {
-                    field: 'name2',
-                    caption: 'name2',
-                    width: 100
-                  },
-                  {
-                    caption: 'name3',
-                    field: 'name3',
-                    width: 150,
-            
-                  }
-              ]
+            title: 'name3',
+            field: 'name3',
+            width: 150
           }
-      ]
-    }
+        ]
+      }
+    ]
+  }
 ];
 
 const option = {
   records,
   columns,
-  widthMode:'standard',
-  autoWrapText:true,
-  autoRowHeight:true,
-  defaultColWidth:150,
+  widthMode: 'standard',
+  autoWrapText: true,
+  autoRowHeight: true,
+  defaultColWidth: 150
 };
 tableInstance = new VTable.ListTable(document.getElementById(CONTAINER_ID), option);
 window['tableInstance'] = tableInstance;
-
 ```

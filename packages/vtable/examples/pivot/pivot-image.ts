@@ -172,16 +172,14 @@ export function createTable() {
     indicatorTitle: '指标名称',
     records: records,
     // widthMode: 'autoWidth', // 宽度模式：standard 标准模式； adaptive 自动填满容器
-    columnResizeType: 'indicator', // 'column' | 'indicator' | 'all'
+    resize: {
+      columnResizeType: 'indicator' // 'column' | 'indicator' | 'all'
+    },
     defaultRowHeight: 100,
     defaultHeaderRowHeight: 40
   };
 
   const instance = new PivotTable(option);
-
-  VTable.bindDebugTool(instance.scenegraph.stage as any, {
-    customGrapicKeys: ['role', '_updateTag']
-  });
 
   // 只为了方便控制太调试用，不要拷贝
   window.tableInstance = instance;

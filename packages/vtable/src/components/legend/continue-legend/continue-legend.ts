@@ -1,7 +1,7 @@
 import { cloneDeep, get, merge } from '@visactor/vutils';
 import type { IColorTableLegendOption, ISizeTableLegendOption } from '../../../ts-types/component/legend';
 import type { BaseTableAPI } from '../../../ts-types/base-table';
-import { ColorContinuousLegend, SizeContinuousLegend, LegendEvent } from '@visactor/vrender-components';
+import { ColorContinuousLegend, SizeContinuousLegend, LegendEvent } from '@src/vrender';
 import { getContinuousLegendAttributes } from './get-continue-legend-attributes';
 import { TABLE_EVENT_TYPE } from '../../../core/TABLE_EVENT_TYPE';
 import { getQuadProps } from '../../../scenegraph/utils/padding';
@@ -22,7 +22,7 @@ export class ContinueTableLegend {
     this.orient = option.orient ?? 'left';
     this.visible = option.visible ?? true;
     this.position = option.position ?? 'middle';
-    this.selectedData = option.defaultSelected ?? [];
+    this.selectedData = option.defaultSelected ?? null;
 
     this.createComponent();
     this.initEvent();
@@ -52,13 +52,20 @@ export class ContinueTableLegend {
     }
     legend.name = 'legend';
     this.legendComponent = legend;
+    if (this.visible === false) {
+      legend.setAttributes({
+        visible: false,
+        visibleAll: false
+      });
+      legend.hideAll();
+    }
     this.table.scenegraph.stage.defaultLayer.appendChild(legend);
 
     this.adjustTableSize(attrs);
   }
 
   resize() {
-    if (!this.legendComponent) {
+    if (!this.legendComponent || this.visible === false) {
       return;
     }
 
@@ -71,6 +78,9 @@ export class ContinueTableLegend {
   }
 
   adjustTableSize(attrs: any) {
+    if (!this.legendComponent || this.visible === false) {
+      return;
+    }
     // 调整位置
     let width = isFinite(this.legendComponent.AABBBounds.width()) ? this.legendComponent.AABBBounds.width() : 0;
     let height = isFinite(this.legendComponent.AABBBounds.height()) ? this.legendComponent.AABBBounds.height() : 0;

@@ -28,10 +28,7 @@ export function checkFirstRowMerge(row: number, proxy: SceneProxy) {
 
       newCellGroup.col = col;
       newCellGroup.row = row;
-      newCellGroup.setAttribute(
-        'y',
-        proxy.table.getRowsHeight(proxy.table.columnHeaderLevelCount, range.start.row - 1)
-      );
+      newCellGroup.setAttribute('y', proxy.table.getRowsHeight(proxy.table.frozenRowCount, range.start.row - 1));
 
       oldCellGroup.parent.insertAfter(newCellGroup, oldCellGroup);
       oldCellGroup.parent.removeChild(oldCellGroup);
@@ -50,7 +47,7 @@ export function checkFirstRowMerge(row: number, proxy: SceneProxy) {
 export function checkFirstColMerge(col: number, proxy: SceneProxy) {
   for (let row = 0; row < proxy.table.rowCount; row++) {
     if (
-      (row >= proxy.table.columnHeaderLevelCount && row < proxy.rowStart) ||
+      (row >= proxy.table.frozenRowCount && row < proxy.rowStart) ||
       (row > proxy.rowEnd && row < proxy.table.rowCount - proxy.table.bottomFrozenRowCount)
     ) {
       continue;
@@ -104,7 +101,7 @@ function clearHadMergedRow(rowStart: number, rowEnd: number, col: number, proxy:
       cellGroup.setAttributes({
         width: 0,
         height: proxy.table.getRowHeight(cellGroup.row),
-        y: proxy.table.getRowsHeight(proxy.table.columnHeaderLevelCount, cellGroup.row - 1),
+        y: proxy.table.getRowsHeight(proxy.table.frozenRowCount, cellGroup.row - 1),
         x: 0
       });
       cellGroup.clear();
@@ -142,7 +139,7 @@ function checkHasColMerge(colStart: number, colEnd: number, row: number, proxy: 
 
 export function getFirstChild(containerGroup: Group): Group {
   let child = containerGroup.firstChild as Group;
-  while (child.type !== 'group') {
+  while (child && child.type !== 'group') {
     child = child._next as Group;
   }
   return child;
@@ -150,7 +147,7 @@ export function getFirstChild(containerGroup: Group): Group {
 
 export function getLastChild(containerGroup: Group): Group {
   let child = containerGroup.lastChild as Group;
-  while (child.type !== 'group') {
+  while (child && child.type !== 'group') {
     child = child._prev as Group;
   }
   return child;

@@ -7,7 +7,7 @@ export function createTable() {
     rows: ['province', 'city'],
     columns: ['category', 'sub_category'],
     indicators: ['sales', 'number'],
-    enableDataAnalysis: true,
+
     indicatorTitle: '指标名称',
     indicatorsAsCol: false,
     dataConfig: {
@@ -28,7 +28,13 @@ export function createTable() {
         }
       }
     },
+    columnResizeMode: 'header',
     corner: { titleOnDimension: 'row' },
+    theme: VTable.themes.DEFAULT.extends({
+      columnResize: {
+        visibleOnHover: true
+      }
+    }),
     records: [
       {
         sales: 891,

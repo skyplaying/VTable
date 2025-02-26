@@ -1,5 +1,4 @@
 export * from './common';
-export * from './table-engine';
 export * from './column';
 export * from './events';
 export * from './theme';
@@ -13,3 +12,6 @@ export * from './menu';
 export * from './icon';
 export * from './list-table';
 export * from './pivot-table';
+export * from './component';
+export * from './animation';
+export * from './dataset';

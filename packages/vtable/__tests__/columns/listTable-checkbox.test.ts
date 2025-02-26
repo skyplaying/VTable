@@ -1,6 +1,6 @@
 // @ts-nocheck
 // 有问题可对照demo unitTestListTable
-import { ListTable } from '../../src/ListTable';
+import { ListTable } from '../../src';
 import { createDiv } from '../dom';
 global.__VERSION__ = 'none';
 describe('listTable-checkbox init test', () => {
@@ -124,8 +124,8 @@ describe('listTable-checkbox init test', () => {
 
   const listTable = new ListTable(containerDom, option);
   test('listTable-checkbox getCheckboxState', () => {
-    expect(listTable.stateManager?.checkedState.length).toEqual(101);
+    expect(listTable.stateManager?.checkedState.size).toEqual(100);
     expect(listTable.getCheckboxState().length).toEqual(2000);
+    listTable.release();
   });
-  listTable.release();
 });

@@ -1,11 +1,13 @@
-{{target: api}}
+{{ target: api }}
 
 {{ import: table-methods }}
 
 {{ import: table-properties }}
 
-{{import: table-events}}
+{{ import: table-events }}
 
-{{import: table-register}}
+{{ import: table-register }}
 
-(Note: The input provided is already in English and does not require translation.)
+{{ import: gantt-api }}
+
+{{ import: calendar-api }}
